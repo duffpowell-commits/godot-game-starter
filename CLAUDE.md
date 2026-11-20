@@ -45,6 +45,10 @@ first; it is the handoff between sessions.
     surface, combat layer, ducking in `Audio`), first 60 s (`coach.gd`, `BOOT PASS`), portable assets,
     telemetry + crash hook (`Telemetry`, offline, opt-in), haptics, gamepad + remap (`Controls`,
     Settings -> CONTROLS), offline-first.
+17. **Pipeline lessons** (Nov 20, from the Hunter thread): motion only from clips, models normalised
+    (metres, feet on 0, +Z; `test_models_portable`), texture imports explicit
+    (`test_texture_imports_explicit`), controls legend (`controls_legend.gd`, `LEGEND PASS`), no
+    "seamless tile" prompts.
 Cut by Duff: playtest link + feedback sheet. (Phone frame-rate check came back as standard 3.)
 
 ## Layout

@@ -179,8 +179,55 @@ func test_models_portable() -> void:
 		if sk.size() == 1:
 			for b in ["pelvis", "spine_01", "Head", "thigh_l", "calf_l", "foot_l", "upperarm_r", "hand_r"]:
 				check((sk[0] as Skeleton3D).find_bone(b) >= 0, f + " has bone " + b)
+			_check_model_scale(f, scene as Node3D, sk[0] as Skeleton3D)
 		scene.free()
 	check(count > 0, "models found")
+
+
+## Normalised import: 1 unit = 1 m, root scale 1, feet on y = 0, same facing as the mannequin
+## (glTF +Z forward; Character3D turns it). Catches 100x centimetre roots and floating feet.
+func _check_model_scale(f: String, root: Node3D, sk: Skeleton3D) -> void:
+	check(root.scale.is_equal_approx(Vector3.ONE), f + " root scale is 1")
+	var xf := Transform3D.IDENTITY
+	var n: Node = sk
+	while n != null:
+		if n is Node3D:
+			xf = (n as Node3D).transform * xf
+		n = n.get_parent()
+	var head := (xf * sk.get_bone_global_rest(sk.find_bone("Head"))).origin
+	var foot := (xf * sk.get_bone_global_rest(sk.find_bone("foot_l"))).origin
+	var toe_i := sk.find_bone("ball_l")
+	var toe := (xf * sk.get_bone_global_rest(toe_i)).origin if toe_i >= 0 else foot
+	check(head.y > 1.2 and head.y < 2.2, f + " is human height in metres (head at %.2f)" % head.y)
+	check(minf(toe.y, foot.y) > -0.05 and minf(toe.y, foot.y) < 0.12, f + " feet on y = 0 (%.2f)" % minf(toe.y, foot.y))
+	check(toe_i < 0 or toe.z > foot.z, f + " faces +Z like the mannequin")
+
+
+## Texture imports are explicit: colour maps are sRGB and never normal maps; only *_n / *_normal
+## files may be normal maps. (Godot's "detect" setting can flip a colour map to a normal map.)
+func test_texture_imports_explicit() -> void:
+	for path: String in _files("res://assets", [".png.import", ".jpg.import", ".jpeg.import", ".webp.import"]):
+		var cfg := ConfigFile.new()
+		if cfg.load(path) != OK:
+			continue
+		var base: String = path.get_file().get_basename().get_basename()
+		var is_normal: bool = base.ends_with("_n") or base.ends_with("_normal")
+		var nm: int = cfg.get_value("params", "compress/normal_map", 0)
+		check(nm == (1 if is_normal else 2), "%s normal_map is %s (set it, don't detect)" % [path, "on" if is_normal else "off"])
+
+
+func _files(dir: String, ends: Array) -> Array:
+	var out := []
+	var d := DirAccess.open(dir)
+	if d == null:
+		return out
+	for f in d.get_files():
+		for e in ends:
+			if f.ends_with(e):
+				out.append(dir + "/" + f)
+	for sub in d.get_directories():
+		out.append_array(_files(dir + "/" + sub, ends))
+	return out
 
 
 ## 7. Coach hints are short (no text walls).

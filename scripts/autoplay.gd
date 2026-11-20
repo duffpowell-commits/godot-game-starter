@@ -50,15 +50,15 @@ func _run() -> void:
 	var game := get_tree().current_scene
 
 	# Play: tap the green orbs for a few seconds.
-	var t := 0.0
+	# Real time, not frame counts: a slow box runs few frames, so give it up to 15 s and stop at 3 points.
 	var start_score: int = game.score
-	while t < 5.0:
+	var until := Time.get_ticks_msec() + 15000
+	while Time.get_ticks_msec() < until and game.score < start_score + 3:
 		for o in game.orbs:
 			if not o.bad and o.pos.y > 150:
 				await _tap_at(game.field.get_global_transform() * o.pos)
 				break
 		await _frames(3)
-		t += 3.0 / 60.0
 	_shot("game")
 	_check(game.score > start_score, "PLAY PASS (score %d)" % game.score)
 
@@ -488,6 +488,36 @@ func _standards_checks(ct: Node, coach_was: bool) -> void:
 	_check(remap_ok,
 		"REMAP PASS (jump moved to T, saved, reset)")
 	await _physics(80)
+	# Controls legend: hidden for touch players, shows on the first key/pad press, follows remaps,
+	# and the Settings toggle hides it.
+	var lg: PanelContainer = preload("res://scripts/controls_legend.gd").make(["jump", "pause"])
+	lg.top = 420                              # below the scene's own legend
+	ct.ui.add_child(lg)
+	await _frames(2)
+	var hidden_touch := not lg.visible
+	var kp := InputEventKey.new()
+	kp.physical_keycode = KEY_Z
+	kp.pressed = true
+	Input.parse_input_event(kp)
+	kp.pressed = false
+	Input.parse_input_event(kp)
+	await _frames(3)
+	var shown := lg.visible
+	await _frames(2)
+	_shot("legend")
+	var kt := InputEventKey.new()
+	kt.physical_keycode = KEY_T
+	controls.rebind("jump", kt)
+	lg.refresh()
+	var follows: bool = "T" in lg._label.text.split("\n")[0]
+	controls.reset()
+	var settings: Node = get_node("/root/Settings")
+	settings.set_value("show_legend", false)
+	var off := not lg.visible
+	settings.set_value("show_legend", true)
+	_check(hidden_touch and shown and follows and off and ct.legend != null,
+		"LEGEND PASS (hidden on touch, shows on key, follows remap, toggle hides)")
+	lg.queue_free()
 	# 5. The hero reads against the floor, in normal light and in the dark.
 	_place(hero, Vector3(-2, 0.05, 0.5), 0.0)
 	await _physics(20)

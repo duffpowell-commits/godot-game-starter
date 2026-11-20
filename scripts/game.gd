@@ -11,6 +11,7 @@ extends Control
 const UI = preload("res://scripts/ui.gd")
 const SettingsSheet = preload("res://scripts/settings_sheet.gd")
 const BugReport = preload("res://scripts/bug_report.gd")
+const ControlsLegend = preload("res://scripts/controls_legend.gd")
 
 const LIVES := 3
 const PER_LEVEL := 10
@@ -93,6 +94,10 @@ func _build() -> void:
 	hud.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hud)
+	var legend := ControlsLegend.make(["pause"])
+	legend.name = "Legend"
+	legend.top = 30 + UI.MIN_TOUCH + 12
+	add_child(legend)
 	# Thumb buttons: PAUSE top corner, SLOW bottom corner, both on the thumb's side.
 	var left: bool = _settings.get_value("left_handed")
 	pause_btn = UI.button("PAUSE", pause)

@@ -13,6 +13,13 @@ const ACTIONS := {
 	"jump": "JUMP", "attack": "ATTACK", "dodge": "DODGE", "crouch": "CROUCH", "aim": "AIM", "pause": "PAUSE",
 }
 
+const PAD_NAMES := {
+	JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y",
+	JOY_BUTTON_BACK: "BACK", JOY_BUTTON_START: "START", JOY_BUTTON_LEFT_SHOULDER: "LB",
+	JOY_BUTTON_RIGHT_SHOULDER: "RB", JOY_BUTTON_DPAD_UP: "UP", JOY_BUTTON_DPAD_DOWN: "DOWN",
+	JOY_BUTTON_DPAD_LEFT: "LEFT", JOY_BUTTON_DPAD_RIGHT: "RIGHT",
+}
+
 var _custom := {}                      # action -> {"key": InputEvent, "pad": InputEvent}
 
 
@@ -105,10 +112,13 @@ func describe(action: String) -> String:
 		if e is InputEventKey:
 			parts.append(OS.get_keycode_string((e as InputEventKey).physical_keycode).to_upper())
 		elif e is InputEventJoypadButton:
-			parts.append("PAD " + str((e as InputEventJoypadButton).button_index))
+			parts.append("PAD " + PAD_NAMES.get((e as InputEventJoypadButton).button_index, str((e as InputEventJoypadButton).button_index)))
 		elif e is InputEventJoypadMotion:
 			var m := e as InputEventJoypadMotion
-			parts.append("STICK %d%s" % [m.axis, "+" if m.axis_value > 0 else "-"])
+			if m.axis == JOY_AXIS_TRIGGER_LEFT or m.axis == JOY_AXIS_TRIGGER_RIGHT:
+				parts.append("PAD " + ("LT" if m.axis == JOY_AXIS_TRIGGER_LEFT else "RT"))
+			else:
+				parts.append("STICK %d%s" % [m.axis, "+" if m.axis_value > 0 else "-"])
 		if parts.size() >= 2:
 			break
 	return " / ".join(parts)

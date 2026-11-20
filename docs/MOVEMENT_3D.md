@@ -75,7 +75,8 @@ signals: landed, climbed, hit_taken(power), died
 ## New character (keep the skeleton, swap the body)
 1. Humanoid in T- or A-pose, **under ~5k triangles** (phones), one material or a small palette.
 2. Rig to the UE5 mannequin names (Mixamo-style rigs work too, see 3). Export glTF.
-3. Drop the `.glb` in `assets/models/`. Other bone names: Import dock -> Skeleton3D -> Retarget ->
+3. Normalise it: 1 unit = 1 m, root scale 1, feet on y = 0, facing +Z like the mannequin
+   (`test_models_portable` checks). Drop the `.glb` in `assets/models/`. Other bone names: Import dock -> Skeleton3D -> Retarget ->
    Bone Map -> `SkeletonProfileHumanoid` (same profile on the UAL files) so every clip plays on it.
 4. `Character3D.new()`, set `model_path`, `tint`, `rim` (hero only).
 5. Autoplay must still pass LIMBS, FOOTIK and INK with it.

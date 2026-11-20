@@ -35,6 +35,7 @@ static func open(parent: Node) -> VBoxContainer:
 	_toggle(col, s, "INVERT LOOK", "invert_y")
 	_slider(col, s, "LOOK SENSITIVITY", "sensitivity", 0.3, 2.0)
 	_toggle(col, s, "LOW GRAPHICS", "low_graphics")
+	_toggle(col, s, "CONTROLS LEGEND", "show_legend")
 	_toggle(col, s, "SHARE ANONYMOUS STATS", "share_stats")
 	col.add_child(UI.button("CONTROLS", func(): open_controls(parent)))
 	box.add_child(UI.button("DONE", func(): UI.close_sheet(box)))

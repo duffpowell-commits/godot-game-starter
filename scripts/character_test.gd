@@ -10,6 +10,7 @@ extends Node3D
 const UI = preload("res://scripts/ui.gd")
 const CameraRig = preload("res://scripts/camera_rig.gd")
 const Coach = preload("res://scripts/coach.gd")
+const ControlsLegend = preload("res://scripts/controls_legend.gd")
 const Character3D = preload("res://scripts/character3d.gd")
 const TOON = preload("res://shaders/toon.gdshader")
 
@@ -27,6 +28,7 @@ var stick_down := false
 var bot_stick := Vector2.INF     # the autoplay bot steers through this when set
 var stick_area: Control
 var ui: CanvasLayer
+var legend: PanelContainer
 var combo := 0
 var combo_t := 0.0
 var _landed_on := ""            # the swing that already landed (one hit per swing)
@@ -305,6 +307,9 @@ func _build_ui() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.theme = UI.theme()
 	ui.add_child(root)
+	legend = ControlsLegend.make(["move_up", "jump", "attack", "dodge", "crouch", "aim", "pause"])
+	legend.name = "Legend"
+	root.add_child(legend)
 	var left: bool = get_node("/root/Settings").get_value("left_handed")
 	stick_area = Control.new()
 	stick_area.anchor_left = 0.5 if left else 0.0
