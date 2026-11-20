@@ -8,7 +8,7 @@ first; it is the handoff between sessions.
 - Pitch: docs/PITCH.md. Queue (what to work on): QUEUE.md. Progress: tasks/todo.md.
 - Latest build: Releases -> `dev` -> `<repo>.apk` (rebuilt on every push to main). Template's own: https://github.com/duffpowell-commits/godot-game-starter/releases/tag/dev (first green CI Nov 19, build 2).
 - Waiting on Duff: tick Settings -> Template repository; make the keystone (docs/SIGNING.md: `KEYSTONE_PASS` secret here, then Actions -> make keystone). Until then CI signs with a throwaway key and warns.
-- Done: Milestone 0, all 14 approved foundation items (list below).
+- Done: Milestone 0, items 1-14 (Nov 19) + 15, full 3D movement standard (Nov 20). List below.
 - Next: start a game from this template (docs/NEW_GAME.md), then Milestone 1 = the game's core loop.
 
 ## Milestone 0: what's already built (Duff approved items 1-14, Nov 19 2026)
@@ -32,6 +32,10 @@ first; it is the handoff between sessions.
 13. Autoplay bot (`scripts/autoplay.gd`, `tools/autoplay.sh`): plays the whole flow with real taps,
     screenshots to docs/renders/, one PASS line per check. CI fails on any FAIL.
 14. Placeholder art drawn in code + Foxboard/Forge hookup (docs/ART.md, `foxboard_decode.yml`).
+15. **Full range of movement for 3D characters** (Duff, Nov 20; docs/MOVEMENT_3D.md): real skeleton +
+    real clips (walk/run/punch/dodge/hit/death), toon + ink outline + hero rim light, low-poly for phones.
+    Never fake movement with bobbing or tilting stills. `Character3D` (`scripts/character3d.gd`) on the
+    shared CC0 Quaternius UAL skeleton; example scene `scenes/character_test.tscn` (dev menu).
 Cut by Duff: playtest link + feedback sheet, phone frame-rate check.
 
 ## Layout
@@ -41,6 +45,8 @@ Cut by Duff: playtest link + feedback sheet, phone frame-rate check.
   `settings_sheet.gd`. `game.gd` = placeholder "Orb Catch": replace its PLAY section, keep the rest.
 - `tests/run_tests.gd` rule tests. `tools/` check_scripts.gd, autoplay.sh, gen_audio.py (placeholder sounds).
 - `assets/audio/` (list every clip in SOURCES.md), `assets/art/`. `grok_art/` art drops, never ships.
+- `scripts/character3d.gd` 3D character standard, `shaders/` toon + outline, `assets/models/` shared skeleton
+  + clips (list sources in SOURCES.md), `scenes/character_test.tscn` the working example.
 - `signing/` the keystone (encrypted) + `unlock.sh` (CI) + `make_keystone.sh` (once). `docs/renders/` autoplay screenshots.
 
 ## Commands
@@ -58,6 +64,9 @@ Cut by Duff: playtest link + feedback sheet, phone frame-rate check.
 - New scene with gameplay: handle `NOTIFICATION_APPLICATION_FOCUS_OUT` (pause + save) and
   `NOTIFICATION_WM_GO_BACK_REQUEST` (close sheet / pause), deferred, like `game.gd`.
 - Extend the autoplay bot when the game grows: one PASS line per thing that must keep working.
+- 3D characters: `Character3D` on the shared skeleton, real clips only (docs/MOVEMENT_3D.md). Never fake
+  movement with bobbing/tilting stills; a move with no clip doesn't exist yet. Keep the autoplay
+  MOVE360/LIMBS/ACTION/INK checks passing for every character.
 - Renderer is Compatibility everywhere (runs on phones and in iPhone Safari).
 
 ## House rules

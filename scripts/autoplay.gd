@@ -132,6 +132,59 @@ func _run() -> void:
 	_check(_find("GOD MODE") != null, "DEBUG PASS (dev menu opens)")
 	_shot("debug_menu")
 
+	# 3D character standard (docs/MOVEMENT_3D.md): real skeleton, 360° movement, actions, ink look.
+	await _click("3D CHARACTER TEST")
+	await _wait_scene("CharacterTest")
+	await _frames(20)
+	var ct: Node = get_tree().current_scene
+	var hero: Node = ct.hero
+	var skel: Skeleton3D = hero.model.find_children("*", "Skeleton3D", true, false)[0]
+	var foot := skel.find_bone("foot_l")
+	var top_speed := 0.0
+	var foot_travel := 0.0
+	var last_foot := skel.get_bone_global_pose(foot).origin
+	var ang := 0.0
+	while ang < TAU * 1.15:           # steer the stick once round the full circle
+		ct.bot_stick = Vector2(cos(ang), sin(ang))
+		await get_tree().physics_frame
+		ang += 0.06
+		top_speed = maxf(top_speed, hero.speed())
+		var f := skel.get_bone_global_pose(foot).origin
+		foot_travel += f.distance_to(last_foot)
+		last_foot = f
+		if absf(ang - PI) < 0.03:
+			_shot("char_run")
+	ct.bot_stick = Vector2.ZERO
+	_check(hero.turned > 5.6 and top_speed > 4.0,
+		"MOVE360 PASS (turned %.1f rad, top speed %.1f m/s)" % [hero.turned, top_speed])
+	_check(foot_travel > 2.0, "LIMBS PASS (left foot moved %.1f m against the hips: real animation)" % foot_travel)
+	await _frames(40)
+	# Walk up to the dummy and punch it with a real tap on PUNCH.
+	ct.bot_stick = Vector2.ZERO
+	hero.global_position = ct.dummy.global_position + Vector3(0, 0, 1.0)
+	hero.heading = PI
+	hero.model.rotation.y = PI
+	await _frames(5)
+	await _click("PUNCH")
+	await _frames(4)
+	_check(hero.is_acting("punch") and ct.dummy.is_acting("hit"), "ACTION PASS (punch lands, dummy reacts)")
+	_shot("char_punch")
+	await _frames(60)
+	await _click("DODGE")
+	await _frames(4)
+	_check(hero.is_acting("dodge"), "DODGE PASS")
+	await _frames(60)
+	ct.dummy.die()
+	await _frames(70)
+	_check(ct.dummy.dead, "DEATH PASS")
+	_shot("char_death")
+	var inked := true
+	for m in hero.model.find_children("*", "MeshInstance3D", true, false):
+		for i in (m as MeshInstance3D).mesh.get_surface_count():
+			var mat := (m as MeshInstance3D).get_surface_override_material(i) as ShaderMaterial
+			inked = inked and mat != null and mat.next_pass != null
+	_check(inked, "INK PASS (toon + outline on every surface)")
+
 	if not failed:
 		print("AUTOPLAY PASS")
 	get_tree().quit(1 if failed else 0)

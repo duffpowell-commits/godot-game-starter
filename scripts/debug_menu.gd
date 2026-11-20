@@ -82,6 +82,9 @@ func open() -> void:
 		if s != null and s.has_method("debug_skip_level"):
 			s.debug_skip_level()
 		close()))
+	box.add_child(UI.button("3D CHARACTER TEST", func():
+		close()
+		get_tree().change_scene_to_file("res://scenes/character_test.tscn")))
 	box.add_child(UI.button("CLEAR SAVE", func():
 		get_node("/root/Save").clear()
 		close()))
