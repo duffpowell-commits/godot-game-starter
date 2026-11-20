@@ -30,11 +30,14 @@ func _ready() -> void:
 
 func _run() -> void:
 	await _wait_scene("Intro")
+	var intro_ms := Time.get_ticks_msec()
 	await _frames(10)
 	_shot("intro")
+	var skip_ms := Time.get_ticks_msec()
 	await _click("SKIP")
 	await _wait_scene("Title")
-	var boot_ms := Time.get_ticks_msec()
+	# Launch -> intro on screen, plus SKIP -> title. The bot's own frames and screenshot don't count.
+	var boot_ms := intro_ms + (Time.get_ticks_msec() - skip_ms)
 	_check(boot_ms < 10000, "BOOT PASS (title ready %.1f s after launch)" % (boot_ms / 1000.0))
 	await _frames(10)
 	_shot("title")
