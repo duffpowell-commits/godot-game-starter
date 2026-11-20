@@ -10,9 +10,11 @@ extends Node
 
 var shots := ""
 var failed := false
+var _start_ms := 0                      # when game code first runs (engine/driver start-up excluded)
 
 
 func _ready() -> void:
+	_start_ms = Time.get_ticks_msec()
 	if not "--autoplay" in OS.get_cmdline_user_args():
 		queue_free()
 		return
@@ -36,9 +38,10 @@ func _run() -> void:
 	var skip_ms := Time.get_ticks_msec()
 	await _click("SKIP")
 	await _wait_scene("Title")
-	# Launch -> intro on screen, plus SKIP -> title. The bot's own frames and screenshot don't count.
-	var boot_ms := intro_ms + (Time.get_ticks_msec() - skip_ms)
-	_check(boot_ms < 10000, "BOOT PASS (title ready %.1f s after launch)" % (boot_ms / 1000.0))
+	# Game start -> intro on screen, plus SKIP -> title. Driver start-up (10 s of ALSA/llvmpipe on a CI
+	# box, not a phone) and the bot's own frames and screenshot don't count.
+	var boot_ms := (intro_ms - _start_ms) + (Time.get_ticks_msec() - skip_ms)
+	_check(boot_ms < 10000, "BOOT PASS (title ready %.1f s after game start)" % (boot_ms / 1000.0))
 	await _frames(10)
 	_shot("title")
 	_check(_find("CONTINUE") == null, "TITLE PASS (no save yet)")
