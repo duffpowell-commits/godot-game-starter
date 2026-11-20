@@ -2,7 +2,9 @@
 
 | File | Source | Licence |
 |---|---|---|
-| `ual1_standard.glb` | Quaternius, Universal Animation Library (UAL1), "Standard" pack, itch.io quaternius.itch.io | CC0 (public domain) |
+| `ual1_standard.glb` | Quaternius, Universal Animation Library (UAL1) "Standard", quaternius.itch.io/universal-animation-library | CC0 (public domain) |
+| `ual2_standard.glb` | Quaternius, Universal Animation Library 2 "Standard", root-motion export (`UAL2_Standard_RM.glb`), quaternius.itch.io/universal-animation-library-2 | CC0 (public domain) |
 
-UAL1 = mannequin + ~45 clips on one 65-bone humanoid skeleton (UE5 bone names). It has no kick:
-UAL2 (same skeleton, CC0) does. List every new model or clip pack here.
+Both share one 65-bone humanoid skeleton (UE5 mannequin names). UAL2 is loaded as clip library
+`ual2/` on top of UAL1's mannequin. Neither pack has a kick or side-step strafe clips.
+List every new model or clip pack here.

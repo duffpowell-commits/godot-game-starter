@@ -10,13 +10,14 @@ uniform float shade_floor : hint_range(0.0, 1.0) = 0.35; // darkest band (ambien
 uniform vec4 rim_color : source_color = vec4(1.0, 0.42, 0.08, 1.0);
 uniform float rim_strength : hint_range(0.0, 4.0) = 0.0; // 0 = no rim
 uniform float rim_width : hint_range(0.05, 0.8) = 0.3;
+uniform float flash : hint_range(0.0, 1.0) = 0.0;          // hit flash (Character3D.hit)
 
 void fragment() {
 	ALBEDO = albedo.rgb * texture(albedo_tex, UV).rgb;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 	float fres = 1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0);
-	EMISSION = rim_color.rgb * rim_strength * step(1.0 - rim_width, fres);
+	EMISSION = rim_color.rgb * rim_strength * step(1.0 - rim_width, fres) + vec3(flash);
 }
 
 void light() {

@@ -132,24 +132,75 @@ func _run() -> void:
 	_check(_find("GOD MODE") != null, "DEBUG PASS (dev menu opens)")
 	_shot("debug_menu")
 
-	# 3D character standard (docs/MOVEMENT_3D.md): real skeleton, 360° movement, actions, ink look.
+	# 3D character standard (docs/MOVEMENT_3D.md): full range of movement, every system proven.
 	await _click("3D CHARACTER TEST")
 	await _wait_scene("CharacterTest")
 	await _frames(20)
-	var ct: Node = get_tree().current_scene
+	await _movement_checks(get_tree().current_scene)
+
+	if not failed:
+		print("AUTOPLAY PASS")
+	get_tree().quit(1 if failed else 0)
+
+
+# ---------------------------------------------------------------- 3D movement checks
+
+var _bones := {}
+
+
+func _snap_bones(sk: Skeleton3D) -> void:
+	var d := {}
+	for b in ["foot_l", "foot_r", "pelvis", "Head"]:
+		d[b] = sk.global_transform * sk.get_bone_global_pose(sk.find_bone(b)).origin
+	d["head_fwd"] = (sk.global_transform.basis * sk.get_bone_global_pose(sk.find_bone("Head")).basis.z).normalized()
+	_bones[sk.get_instance_id()] = d
+
+
+## Bone positions as drawn (after animation, IK and ragdoll), not before the modifiers ran.
+func _bone(c: Node, b: String) -> Variant:
+	var sk: Skeleton3D = c.skeleton
+	if not sk.skeleton_updated.is_connected(_snap_bones.bind(sk)):
+		sk.skeleton_updated.connect(_snap_bones.bind(sk))
+		await _frames(2)
+	await _frames(1)
+	return _bones[sk.get_instance_id()][b]
+
+
+func _place(c: Node, p: Vector3, h: float) -> void:
+	c.global_position = p
+	c.velocity = Vector3.ZERO
+	c.heading = h
+	c.model.rotation.y = h
+	var sc := get_tree().current_scene
+	if sc.has_method("_place_camera") and c == sc.get("hero"):
+		sc._place_camera(1.0)                  # cut, don't pan, after a teleport
+
+
+func _physics(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
+
+
+func _ground_gap(c: Node, foot: Vector3) -> float:
+	var q := PhysicsRayQueryParameters3D.create(foot + Vector3.UP, foot + Vector3.DOWN * 2.0, 2)
+	var r: Dictionary = c.get_world_3d().direct_space_state.intersect_ray(q)
+	return foot.y - float(r.position.y) if not r.is_empty() else 99.0
+
+
+func _movement_checks(ct: Node) -> void:
 	var hero: Node = ct.hero
-	var skel: Skeleton3D = hero.model.find_children("*", "Skeleton3D", true, false)[0]
-	var foot := skel.find_bone("foot_l")
+	var dummy: Node = ct.dummy
+	# 360 degrees of movement with real limb animation.
 	var top_speed := 0.0
 	var foot_travel := 0.0
-	var last_foot := skel.get_bone_global_pose(foot).origin
+	var last_foot: Vector3 = await _bone(hero, "foot_l")
 	var ang := 0.0
-	while ang < TAU * 1.15:           # steer the stick once round the full circle
+	while ang < TAU * 1.15:
 		ct.bot_stick = Vector2(cos(ang), sin(ang))
-		await get_tree().physics_frame
+		await _frames(1)
 		ang += 0.06
 		top_speed = maxf(top_speed, hero.speed())
-		var f := skel.get_bone_global_pose(foot).origin
+		var f: Vector3 = _bones[hero.skeleton.get_instance_id()]["foot_l"] - hero.global_position
 		foot_travel += f.distance_to(last_foot)
 		last_foot = f
 		if absf(ang - PI) < 0.03:
@@ -157,37 +208,116 @@ func _run() -> void:
 	ct.bot_stick = Vector2.ZERO
 	_check(hero.turned > 5.6 and top_speed > 4.0,
 		"MOVE360 PASS (turned %.1f rad, top speed %.1f m/s)" % [hero.turned, top_speed])
-	_check(foot_travel > 2.0, "LIMBS PASS (left foot moved %.1f m against the hips: real animation)" % foot_travel)
-	await _frames(40)
-	# Walk up to the dummy and punch it with a real tap on PUNCH.
+	_check(foot_travel > 2.0, "LIMBS PASS (left foot travelled %.1f m against the hips: real animation)" % foot_travel)
+	# Feet planted on a slope and on stairs (foot IK): both ankles at ankle height over the ground.
+	for spot in [["SLOPE", Vector3(5, 1.5, -3), PI], ["STAIRS", Vector3(-3.5, 1.2, 3), -PI / 2]]:
+		_place(hero, spot[1], spot[2])
+		await _physics(50)
+		var gl := _ground_gap(hero, await _bone(hero, "foot_l"))
+		var gr := _ground_gap(hero, _bones[hero.skeleton.get_instance_id()]["foot_r"])
+		_check(absf(gl - gr) < 0.04 and gl < 0.16 and gr < 0.16,
+			"FOOTIK %s PASS (feet %.2f / %.2f m over the ground)" % [spot[0], gl, gr])
+		if spot[0] == "STAIRS":
+			_shot("char_stairs")
+	# Jump: take-off, fall, land.
+	_place(hero, Vector3(0, 0.05, 0), 0.0)
+	await _physics(10)
+	hero.jump()
+	var peak := 0.0
+	var phases := {}
+	for i in 90:
+		await _physics(1)
+		peak = maxf(peak, hero.global_position.y)
+		phases[hero.air_phase] = true
+		if i == 20:
+			_shot("char_jump")
+	_check(peak > 0.6 and phases.has("start") and phases.has("fall") and phases.has("land") and hero.mode == "ground",
+		"JUMP PASS (peak %.2f m, start/fall/land)" % peak)
+	# Crouch walk.
+	ct.toggle_crouch()
+	ct.bot_stick = Vector2(1, 0)
+	await _physics(30)
+	_check(hero.mode == "crouch" and hero.speed() < 2.0 and hero._cap.height < 1.3, "CROUCH PASS (speed %.1f)" % hero.speed())
+	_shot("char_crouch")
 	ct.bot_stick = Vector2.ZERO
-	hero.global_position = ct.dummy.global_position + Vector3(0, 0, 1.0)
-	hero.heading = PI
-	hero.model.rotation.y = PI
-	await _frames(5)
+	ct.toggle_crouch()
+	# Aim: turn in place, strafe (chest on target, legs sideways), backpedal, head looks at it.
+	_place(hero, Vector3(0, 0.05, 2), 0.0)
+	await _physics(5)
+	var turned0: float = hero.turned
+	await _click("AIM")
+	await _physics(60)
+	var start_pos: Vector3 = hero.global_position
+	var to_d: Vector3 = (dummy.global_position - hero.global_position).normalized()
+	_check(hero.turned - turned0 > 1.0 and start_pos.distance_to(Vector3(0, 0, 2)) < 0.2, "TURN PASS (turned on the spot)")
+	var head_fwd: Vector3 = await _bone(hero, "head_fwd")
+	_check(Vector2(head_fwd.x, head_fwd.z).normalized().dot(Vector2(to_d.x, to_d.z)) > 0.85, "LOOKAT PASS (head on target)")
+	ct.bot_stick = Vector2(1, 0)
+	await _physics(25)
+	_check(absf(hero.twist.yaw) > 0.5 and hero.speed() > 3.0, "STRAFE PASS (chest twisted %.0f deg)" % rad_to_deg(hero.twist.yaw))
+	_shot("char_strafe")
+	_place(hero, Vector3(0, 0.05, 1), PI)
+	ct.bot_stick = Vector2(0, 1)
+	await _physics(25)
+	_check(hero.backpedal and hero.speed() > 3.0, "BACKPEDAL PASS")
+	ct.bot_stick = Vector2.ZERO
+	await _click("AIM")
+	# Punch combo: jab, cross, hook; the hook knocks the dummy back (root motion).
+	_place(hero, dummy.global_position + Vector3(0, 0.05, 1.0), PI)
+	await _physics(5)
 	await _click("PUNCH")
-	await _frames(4)
-	_check(hero.is_acting("punch") and ct.dummy.is_acting("hit"), "ACTION PASS (punch lands, dummy reacts)")
+	await _physics(4)
+	_check(hero.is_acting("punch") and dummy.is_acting("hit_chest"), "ACTION PASS (punch lands, dummy flinches)")
 	_shot("char_punch")
-	await _frames(60)
+	await _physics(30)
+	await _click("PUNCH")
+	await _physics(30)
+	var d0: Vector3 = dummy.global_position
+	_place(hero, dummy.global_position + Vector3(0, 0.05, 1.0), PI)
+	await _click("PUNCH")
+	await _physics(60)
+	_check(dummy.global_position.distance_to(d0) > 0.6, "KNOCKBACK PASS (dummy thrown %.1f m)" % dummy.global_position.distance_to(d0))
 	await _click("DODGE")
-	await _frames(4)
+	await _physics(4)
 	_check(hero.is_acting("dodge"), "DODGE PASS")
-	await _frames(60)
-	ct.dummy.die()
-	await _frames(70)
-	_check(ct.dummy.dead, "DEATH PASS")
-	_shot("char_death")
+	await _physics(60)
+	# Climb a 1 m ledge, vault a 0.8 m wall, swim, climb out of the water.
+	_place(hero, Vector3(0, 0.05, -6.4), PI)
+	await _physics(10)
+	await _click("JUMP")
+	await _physics(12)
+	_shot("char_climb")
+	await _physics(60)
+	_check(hero.global_position.y > 0.9 and hero.mode == "ground", "CLIMB PASS (on the ledge at %.2f m)" % hero.global_position.y)
+	_place(hero, Vector3(9.25, 0.05, 0.9), 0.0)
+	await _physics(10)
+	await _click("JUMP")
+	await _physics(80)
+	_check(hero.global_position.z > 2.0 and hero.global_position.y < 0.2, "VAULT PASS (over the wall)")
+	_place(hero, Vector3(-6.5, 0.5, -7.5), 0.0)
+	await _physics(90)
+	_check(hero.mode == "swim", "SWIM PASS")
+	_shot("char_swim")
+	_place(hero, Vector3(-6.5, -1.6, -5.8), 0.0)
+	await _physics(5)
+	await _click("JUMP")
+	await _physics(90)
+	_check(hero.mode == "ground" and hero.global_position.y > -0.1, "SWIMOUT PASS (climbed out of the pool)")
+	# Ragdoll death: the body falls under physics, the pelvis ends near the floor.
+	ct.reset_dummy()
+	_place(hero, Vector3(2, 0.05, 0), 0.0)
+	await _physics(10)
+	dummy.die(Vector3(0, 3, -8))
+	await _physics(150)
+	var pel: Vector3 = await _bone(dummy, "pelvis")
+	_check(dummy.is_ragdoll() and pel.y < 0.4, "RAGDOLL PASS (pelvis down to %.2f m)" % pel.y)
+	_shot("char_ragdoll")
 	var inked := true
 	for m in hero.model.find_children("*", "MeshInstance3D", true, false):
 		for i in (m as MeshInstance3D).mesh.get_surface_count():
 			var mat := (m as MeshInstance3D).get_surface_override_material(i) as ShaderMaterial
 			inked = inked and mat != null and mat.next_pass != null
 	_check(inked, "INK PASS (toon + outline on every surface)")
-
-	if not failed:
-		print("AUTOPLAY PASS")
-	get_tree().quit(1 if failed else 0)
 
 
 # ---------------------------------------------------------------- helpers

@@ -1,68 +1,93 @@
-# Full range of movement (house standard for every 3D game)
+# Full range of movement (house standard for every game with 3D characters)
 
-Duff's rule (Nov 20, 2026): characters move like characters. Real-time 3D models on a real
-skeleton, playing real animation clips: walk, run, punch, dodge, get hit, die. Working example:
-`scenes/character_test.tscn` (dev menu -> 3D CHARACTER TEST). Autoplay proves it on every push.
+## The rule (engine-proof)
+**Characters use the full range of movement the current engine supports.** Real skeletons, real
+animation clips, real physics. Never fake movement with bobbing, tilting or sliding stills.
 
-## Never fake movement
-- No bobbing, tilting, squashing or sliding a still image to stand in for walking or attacking.
-- No flipbook of 2-3 painted frames for a moving character in a 3D game.
-- If a move has no clip yet, the character doesn't do that move yet. Placeholder = the mannequin
-  doing the real clip, never a still doing a fake one.
-- (2D sprite games keep sprite sheets; this standard is for games with a 3D view.)
+This holds in any engine (Godot today; Unity or Unreal later). What changes per engine is only the
+implementation list below. To keep characters portable:
+- One **standard humanoid skeleton** for every character (UE5 mannequin bone names: `pelvis`,
+  `spine_01..03`, `thigh_l`, `foot_l`, `Head`...). Unity's Humanoid and Unreal's IK Retargeter both
+  map it; Godot maps it with `SkeletonProfileHumanoid`.
+- **Portable formats:** models and clips as glTF 2.0 (`.glb`), FBX as a fallback. No engine-only
+  formats as the source. Source art lives in Foxboard (docs/ART.md).
+- Movement rules (speeds, ranges, timings) are plain numbers at the top of the character script, so
+  they can be copied to another engine.
+- A move with no clip doesn't exist yet. Placeholder = the mannequin doing the real clip.
+
+## What "full range" means today (Godot 4.5, Compatibility renderer, phones)
+| Area | Built in | How |
+|---|---|---|
+| Locomotion | idle, walk, jog, sprint, any direction | BlendSpace1D by real ground speed; stick length = speed |
+| Strafe / 8-way | chest on target, legs walk any way, backpedal | upper/lower body split: legs face the move, `AimTwist` turns the spine up to 80 deg; behind you = walk clip played backwards |
+| Turn in place | hips step round when the target is > 60 deg off | walk clip at step speed while the hips rotate |
+| Jump | take-off, fall loop, land | coyote time 0.12 s; landing sets the land clip |
+| Crouch | crouch idle/walk, shorter capsule, won't stand under a roof | |
+| Foot IK | feet planted on slopes, stairs, kerbs; hips drop to reach | `scripts/foot_ik.gd`, two-bone solve, 2 rays per character |
+| Look-at / aim | head turns to a target | `LookAtModifier3D` on `Head` |
+| Hit reactions | flinch (head/chest), knockback | knockback uses the clip's own root motion; hit-stop + flash |
+| Root motion | where the clip should move the body | knockback, slide (`ROOT_MOTION` in character3d.gd) |
+| Death | physics ragdoll (11 bodies) | `scripts/ragdoll.gd`, built on first death only; death clip on low graphics |
+| Climb | ledges 0.4 - 2.0 m, also out of water | `jump()` at a wall; path fitted to the ledge, ClimbUp clip time-scaled |
+| Vault | thin walls 0.4 - 1.1 m with floor behind | `jump()` at a wall |
+| Swim | float, swim idle/forward | `Area3D` in group `water`, meta `surface` = water height |
+| Actions | punch, cross, hook, dodge roll, slide | OneShots over any mode (`ACTIONS`) |
+
+Switch systems per game: `can_climb`, `can_vault`, `can_swim`, `use_foot_ik`, `use_ragdoll`,
+`use_look_at`. Physics layers: 1 = bodies' floors, 2 = feet's floors (steps, slopes), 3 = ragdoll,
+4 = water. Stairs: visual steps on layer 2 (feet), a hidden ramp on layer 1 (body).
 
 ## The pieces
-| Piece | Where | Notes |
-|---|---|---|
-| Character node | `scripts/character3d.gd` (`Character3D`) | CharacterBody3D + model + AnimationTree built in code |
-| Shared skeleton + clips | `assets/models/ual1_standard.glb` | Quaternius Universal Animation Library 1, CC0. 65 bones, UE5 mannequin names (`pelvis`, `thigh_l`, `foot_l`, `hand_r`...) |
-| Toon look | `shaders/toon.gdshader` | hard light bands (`bands` 3), shade floor, rim light (`rim_strength`) |
-| Ink outline | `shaders/outline.gdshader` | inverted hull, constant width in pixels (`width_px` 3) |
-| Proof | `scripts/autoplay.gd` | MOVE360 / LIMBS / ACTION / DODGE / DEATH / INK PASS lines |
+| Piece | Where |
+|---|---|
+| Character | `scripts/character3d.gd` (`Character3D`): CharacterBody3D + model + AnimationTree built in code |
+| Skeleton + clips | `assets/models/ual1_standard.glb` + `ual2_standard.glb` (Quaternius UAL 1 + 2, CC0, same 65-bone rig; UAL2 is the root-motion export) |
+| Modifiers | `scripts/foot_ik.gd`, `scripts/aim_twist.gd`, `scripts/ragdoll.gd`, Godot's `LookAtModifier3D` |
+| Look | `shaders/toon.gdshader` (bands, rim, hit flash), `shaders/outline.gdshader` (ink, constant px) |
+| Playground | `scenes/character_test.tscn` (dev menu -> 3D CHARACTER TEST): slope, stairs, ledge, wall, pool, dummy |
+| Proof | `scripts/autoplay.gd`: MOVE360, LIMBS, FOOTIK SLOPE/STAIRS, JUMP, CROUCH, TURN, LOOKAT, STRAFE, BACKPEDAL, ACTION, KNOCKBACK, DODGE, CLIMB, VAULT, SWIM, SWIMOUT, RAGDOLL, INK |
 
-## How a character moves
-- `move_input` is a stick: any direction, 360 degrees, length = how fast. The body accelerates
-  (`accel`), turns toward where it is going (`turn_speed`), never snaps.
-- Locomotion is one BlendSpace1D by real ground speed: Idle 0 -> Walk 1.6 -> Jog_Fwd 3.6 ->
-  Sprint 6.0 m/s. Feet match the floor because the clip follows the speed, not a timer.
-- Actions are OneShots over the locomotion: `act("punch" | "cross" | "dodge" | "hit")`.
-  A dodge (Roll) carries the body forward. `die()` / `revive()` switch to Death01 and back.
-- Add a move: put the clip name in `ACTIONS`, call `act()`, add a PASS line to autoplay.
+## Clips available (one skeleton)
+UAL1: Idle, Walk, Walk_Formal, Jog_Fwd, Sprint, Crouch_Idle, Crouch_Fwd, Jump_Start, Jump,
+Jump_Land, Roll, Punch_Jab, Punch_Cross, Sword_Idle, Sword_Attack, Hit_Chest, Hit_Head, Death01,
+Interact, PickUp_Table, Push, Sitting_*, Swim_Idle, Swim_Fwd, Pistol_*, Spell_Simple_*, Dance...
+UAL2 (in code as `ual2/<name>`): ClimbUp_1m, Hit_Knockback, Melee_Hook, Slide_*, NinjaJump_*,
+Sword_Regular_A/B/C + combos, Sword_Block, Sword_Dash, Shield_*, OverhandThrow, Walk_Carry,
+Zombie_*, Farm_*, Chest_Open, Consume, LayToIdle...
+**Not in the free packs:** a kick and side-step strafe clips. Strafe works via the body split
+above; a game that wants dedicated strafe/kick clips adds a pack on the same skeleton and lists it
+in `assets/models/SOURCES.md`.
 
-## Clips in UAL1 (all on the same skeleton)
-Idle, Walk, Walk_Formal, Jog_Fwd, Sprint, Crouch_Idle, Crouch_Fwd, Jump_Start, Jump, Jump_Land,
-Roll, Punch_Jab, Punch_Cross, Sword_Idle, Sword_Attack, Hit_Chest, Hit_Head, Death01, Interact,
-PickUp_Table, Push, Sitting_*, Swim_*, Pistol_*, Spell_Simple_*, Dance, Driving, Idle_Talking,
-Idle_Torch, Fixing_Kneeling. **No kick in UAL1**: get one from UAL2 (same skeleton, CC0) when a
-game needs it, add it to `assets/models/SOURCES.md`.
+## How a character moves (API)
+```
+var c := Character3D.new(); c.model_path = "res://assets/models/<id>.glb"; add_child(c)
+c.move_input = Vector2(x, y)   # stick; length = speed
+c.aim_at(target)               # strafe + look; aim_at(null) to stop
+c.jump()                       # jump, or climb/vault/climb-out at a wall
+c.set_crouch(true)
+c.act("punch")                 # punch, cross, hook, dodge, slide
+c.hit(from_pos, power)         # < 0.5 flinch, >= 0.5 knockback; flash + hit-stop built in
+c.hit_stop(0.06)               # freeze the attacker too
+c.die(impulse) / c.revive()
+signals: landed, climbed, hit_taken(power), died
+```
 
 ## New character (keep the skeleton, swap the body)
-1. Model it (or generate it) as a humanoid in T- or A-pose, **under ~5k triangles** (phones),
-   one material or a small palette texture. Faceless/simple shapes read best under the toon shader.
-2. Rig it to the UE5 mannequin bone names (Mixamo-style rigs work too, see 3).
-3. Drop the `.glb` in `assets/models/`. If its bones have other names: in Godot's Import dock
-   choose the Skeleton3D -> Retarget -> Bone Map -> `SkeletonProfileHumanoid`, then use the same
-   profile on `ual1_standard.glb`, so every clip plays on both. (Done on the phone editor too.)
-4. `Character3D.new()`, set `model_path`, `tint`, `rim` (hero only), add to the scene.
-5. Autoplay: the LIMBS check must pass for it (a foot really travels), INK for its surfaces.
-Quick variants without a new model: `tint` recolours the mannequin (the test dummy is red).
-The mannequin itself is ~13.7k tris: fine for one or two on screen, replace it for crowds.
+1. Humanoid in T- or A-pose, **under ~5k triangles** (phones), one material or a small palette.
+2. Rig to the UE5 mannequin names (Mixamo-style rigs work too, see 3). Export glTF.
+3. Drop the `.glb` in `assets/models/`. Other bone names: Import dock -> Skeleton3D -> Retarget ->
+   Bone Map -> `SkeletonProfileHumanoid` (same profile on the UAL files) so every clip plays on it.
+4. `Character3D.new()`, set `model_path`, `tint`, `rim` (hero only).
+5. Autoplay must still pass LIMBS, FOOTIK and INK with it.
+The mannequin is ~13.7k tris: fine for a few on screen, replace it for crowds.
 
-## Look
-- Toon: 3 light bands, shadows never darker than `shade_floor` 0.35, so silhouettes stay readable
-  on a phone in daylight.
-- Ink outline 3 px on every character surface. Props may skip it; characters never do.
-- Rim light: hero only (`rim` ~1.4, warm), so the player finds themself at a glance.
-- Renderer: Compatibility (phones + iPhone Safari). `low_graphics` turns off real-time shadows.
+## Look, camera, controls
+- Toon: 3 light bands, shadows never darker than `shade_floor` 0.35. Ink outline 3 px on every
+  character. Warm rim light on the hero only. Hit flash white for a blink.
+- Camera: fixed high three-quarter, ~50 degrees down, ~7.5 m back, follows with look-ahead.
+- Floating stick on one half (90 px = full speed); JUMP / PUNCH / DODGE / CROUCH / AIM on the other
+  thumb, >= 72 units tall, 18 apart. Left-handed swaps the halves. Keyboard: WASD, Space, J, K, C, L.
 
-## Camera and controls (phone portrait)
-- Fixed high three-quarter camera, ~50 degrees down, ~7.5 m back, follows with a little
-  look-ahead in the walking direction. No free camera to manage with one thumb.
-- Floating stick: put a thumb down anywhere on the move half of the screen, drag (90 px = full
-  speed). Action buttons on the other thumb, >= 72 base units tall, 18 apart. Left-handed setting
-  swaps the halves. WASD/arrows + J/K on keyboard.
-
-## Hit feel (when a game adds combat)
-On a landed hit: ~60 ms hit-stop (freeze both bodies), white flash on the hit body, small camera
-shake, the target plays Hit_Chest/Hit_Head, a buzz (`UI.buzz`). The punch must reach: check
-distance + facing, not the button press alone.
+## Phone budget
+Per character: 1 AnimationTree, 2 foot rays, 2 cheap modifiers. Ragdoll bodies exist only after a
+death. `low_graphics` swaps the ragdoll for the death clip and turns off shadows.

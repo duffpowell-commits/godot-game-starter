@@ -1,21 +1,25 @@
 extends Node3D
-## 3D CHARACTER TEST (dev menu): the full-movement standard working end to end.
+## 3D CHARACTER TEST (dev menu): the full-movement standard working end to end (docs/MOVEMENT_3D.md).
+## A playground with a slope, stairs, a ledge to climb, a low wall to vault and a pool to swim in.
 ## Hero = UAL mannequin with the orange rim; dummy = same model and skeleton, recoloured.
-## Left half: floating stick (any direction, push further = faster). Right side: PUNCH / DODGE.
-## Keyboard: WASD/arrows, J punch, K dodge. Camera: fixed high three-quarter (50° down), follows
-## with look-ahead, never rotates. Copy this setup into a game's real scene.
+## Left half: floating stick (any direction, push further = faster). Right: JUMP (climbs/vaults at a
+## wall), PUNCH (3 in a row = hook, knocks back), DODGE, CROUCH, AIM (strafe facing the dummy).
+## Keyboard: WASD/arrows, Space jump, J punch, K dodge, C crouch, L aim. Camera: fixed high
+## three-quarter (50 degrees down), follows with look-ahead, never rotates.
 
 const UI = preload("res://scripts/ui.gd")
 const Character3D = preload("res://scripts/character3d.gd")
 const TOON = preload("res://shaders/toon.gdshader")
-const OUTLINE = preload("res://shaders/outline.gdshader")
 
 const CAM_PITCH := deg_to_rad(50.0)
 const CAM_DIST := 7.5
 const LOOK_AHEAD := 0.35
+const WORLD := 1 | 2              # body floors + feet floors
+const FEET := 2                   # only feet (visual steps); bodies use the hidden ramp
+const COMBO_GAP := 0.8
 
-var hero: CharacterBody3D
-var dummy: CharacterBody3D
+var hero: Character3D
+var dummy: Character3D
 var cam: Camera3D
 var sun: DirectionalLight3D
 var stick_origin := Vector2.ZERO
@@ -24,6 +28,10 @@ var stick_down := false
 var bot_stick := Vector2.INF     # the autoplay bot steers through this when set
 var stick_area: Control
 var ui: CanvasLayer
+var combo := 0
+var combo_t := 0.0
+var _landed_on := ""            # the swing that already landed (one hit per swing)
+var _dummy_spawn := Vector3(0, 0, -2.5)
 
 
 func _ready() -> void:
@@ -42,15 +50,13 @@ func _ready() -> void:
 	sun.light_energy = 1.2
 	sun.shadow_enabled = not settings.get_value("low_graphics")
 	add_child(sun)
-	_floor()
-	for p in [Vector3(3, 0, -2), Vector3(-3.5, 0, 1.5), Vector3(1.5, 0, 4)]:
-		_crate(p)
+	_build_world()
 	hero = Character3D.new()
 	hero.rim = 1.4
 	add_child(hero)
 	dummy = Character3D.new()
 	dummy.tint = Color(0.75, 0.35, 0.35)
-	dummy.position = Vector3(0, 0, -2.5)
+	dummy.position = _dummy_spawn
 	add_child(dummy)
 	cam = Camera3D.new()
 	cam.fov = 45
@@ -59,56 +65,82 @@ func _ready() -> void:
 	_build_ui()
 
 
-func _floor() -> void:
-	var body := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(40, 1, 40)
-	shape.shape = box
-	shape.position.y = -0.5
-	body.add_child(shape)
-	var mi := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(40, 40)
-	mi.mesh = plane
-	var m := ShaderMaterial.new()
-	m.shader = TOON
-	m.set_shader_parameter("albedo", Color("3a4256"))
-	mi.material_override = m
-	body.add_child(mi)
-	add_child(body)
-	# Grid lines so movement reads on a flat floor.
-	for i in range(-10, 11, 2):
-		for horiz in [true, false]:
-			var line := MeshInstance3D.new()
-			var bm := BoxMesh.new()
-			bm.size = Vector3(40, 0.01, 0.04) if horiz else Vector3(0.04, 0.01, 40)
-			line.mesh = bm
-			line.position = Vector3(0 if horiz else i, 0.005, i if horiz else 0)
-			var lm := StandardMaterial3D.new()
-			lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			lm.albedo_color = Color("2a3040")
-			line.material_override = lm
-			add_child(line)
+# ---------------------------------------------------------------- the playground
+
+func _build_world() -> void:
+	var floor_c := Color("3a4256")
+	# Floor in four pieces round the pool (x -9..-4, z -10..-5).
+	_box(Vector3(-20, -1, -20), Vector3(20, 0, -10), floor_c)
+	_box(Vector3(-20, -1, -5), Vector3(20, 0, 20), floor_c)
+	_box(Vector3(-20, -1, -10), Vector3(-9, 0, -5), floor_c)
+	_box(Vector3(-4, -1, -10), Vector3(20, 0, -5), floor_c)
+	_box(Vector3(-9, -3.2, -10), Vector3(-4, -2.2, -5), Color("2a3346"))       # pool bottom
+	var water := Area3D.new()
+	water.add_to_group("water")
+	water.set_meta("surface", -0.3)
+	water.collision_layer = 8
+	var ws := CollisionShape3D.new()
+	var wb := BoxShape3D.new()
+	wb.size = Vector3(5, 1.9, 5)
+	ws.shape = wb
+	ws.position = Vector3(-6.5, -1.25, -7.5)
+	water.add_child(ws)
+	add_child(water)
+	var wm := MeshInstance3D.new()
+	var wp := PlaneMesh.new()
+	wp.size = Vector2(5, 5)
+	wm.mesh = wp
+	wm.position = Vector3(-6.5, -0.3, -7.5)
+	var wmat := StandardMaterial3D.new()
+	wmat.albedo_color = Color(0.25, 0.55, 0.85, 0.35)
+	wmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wm.material_override = wmat
+	add_child(wm)
+	# Slope: 15 degrees up toward -z, then a deck.
+	var ramp := _box(Vector3(-1.25, -0.1, -2.5), Vector3(1.25, 0.1, 2.5), Color("4a5168"))
+	ramp.position = Vector3(5, 0.65, -3)
+	ramp.rotation.x = deg_to_rad(15)
+	_box(Vector3(3.75, 0, -8.5), Vector3(6.25, 1.3, -5.4), Color("4a5168"))
+	# Stairs up toward -x: visual steps for the feet, a hidden ramp for the body.
+	for i in 8:
+		var x0 := -2.0 - i * 0.35
+		_box(Vector3(x0 - 0.35, 0, 2), Vector3(x0, 0.18 * (i + 1), 4), Color("525a72"), FEET)
+	_box(Vector3(-7.6, 0, 2), Vector3(-4.8, 1.44, 4), Color("525a72"))
+	var stair_ramp := StaticBody3D.new()
+	stair_ramp.collision_layer = 1
+	var sr := CollisionShape3D.new()
+	var srb := BoxShape3D.new()
+	srb.size = Vector3(2.95, 0.05, 2)
+	sr.shape = srb
+	stair_ramp.add_child(sr)
+	stair_ramp.position = Vector3(-3.4, 0.72, 3)
+	stair_ramp.rotation.z = -atan2(1.44, 2.8)
+	add_child(stair_ramp)
+	# Ledge to climb (1 m) and a thin wall to vault (0.8 m).
+	_box(Vector3(-1.5, 0, -9), Vector3(1.5, 1.0, -7), Color("6a5a48"))
+	_box(Vector3(8, 0, 1.5), Vector3(10.5, 0.8, 1.8), Color("6a5a48"))
 
 
-func _crate(p: Vector3) -> void:
+func _box(a: Vector3, b: Vector3, c: Color, layer: int = WORLD) -> StaticBody3D:
 	var body := StaticBody3D.new()
-	body.position = p + Vector3(0, 0.5, 0)
+	body.collision_layer = layer
+	body.position = (a + b) * 0.5
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3.ONE
+	box.size = (b - a).abs()
 	shape.shape = box
 	body.add_child(shape)
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
+	bm.size = box.size
 	mi.mesh = bm
-	var src := StandardMaterial3D.new()
-	src.albedo_color = Color("8a6a45")
-	bm.material = src
+	var m := ShaderMaterial.new()
+	m.shader = TOON
+	m.set_shader_parameter("albedo", c)
+	mi.material_override = m
 	body.add_child(mi)
 	add_child(body)
-	Character3D.apply_toon(body)
+	return body
 
 
 func _place_camera(k: float) -> void:
@@ -132,19 +164,54 @@ func _process(dt: float) -> void:
 				v += k[1]
 	hero.move_input = v.limit_length(1.0)
 	_place_camera(clampf(dt * 6.0, 0.0, 1.0))
-	# The dummy reacts when a punch lands near it.
-	if (hero.is_acting("punch") or hero.is_acting("cross")) and not dummy.dead \
-			and hero.global_position.distance_to(dummy.global_position) < 1.4 and not dummy.is_acting("hit"):
-		dummy.act("hit")
-		UI.buzz(25)
+	combo_t -= dt
+	# A punch lands if it reaches: close, in front, mid-swing. The dummy flinches or is knocked back.
+	var swing := ""
+	for a in ["hook", "cross", "punch"]:          # newest swing first: combos overlap
+		if hero.is_acting(a):
+			swing = a
+			break
+	if swing != _landed_on:
+		_landed_on = ""
+	if swing != "" and _landed_on == "" and not dummy.dead:
+		var to := dummy.global_position - hero.global_position
+		var fwd := Vector3(sin(hero.heading), 0, cos(hero.heading))
+		if to.length() < 1.5 and fwd.dot(to.normalized()) > 0.5:
+			_landed_on = swing
+			dummy.hit(hero.global_position + Vector3(0, 1.2, 0), 0.6 if swing == "hook" else 0.3)
+			hero.hit_stop(0.06)                # the attacker freezes too: hit-stop sells the impact
+			UI.buzz(25)
 	stick_area.queue_redraw()
+
+
+func punch() -> void:
+	combo = combo + 1 if combo_t > 0.0 else 1
+	combo_t = COMBO_GAP
+	hero.act(["punch", "cross", "hook"][(combo - 1) % 3])
+
+
+func toggle_aim() -> void:
+	hero.aim_at(null if hero.aim_target != null else dummy)
+
+
+func toggle_crouch() -> void:
+	hero.set_crouch(not hero.crouching)
+
+
+func reset_dummy() -> void:
+	dummy.revive()
+	dummy.global_position = _dummy_spawn
 
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo:
 		match e.keycode:
-			KEY_J: hero.act("punch")
+			KEY_SPACE: hero.jump()
+			KEY_J: punch()
 			KEY_K: hero.act("dodge")
+			KEY_C: toggle_crouch()
+			KEY_L: toggle_aim()
+			KEY_X: reset_dummy() if dummy.dead else dummy.die(Vector3(0, 2, -6))
 
 
 # ---------------------------------------------------------------- UI
@@ -174,10 +241,13 @@ func _build_ui() -> void:
 	col.anchor_bottom = 1.0
 	col.offset_left = 24 if left else -24 - 180
 	col.offset_right = col.offset_left + 180
-	col.offset_top = -40 - 2 * 96 - UI.GAP
+	col.offset_top = -40 - 5 * 84 - 4 * UI.GAP
 	col.offset_bottom = -40
-	col.add_child(UI.button("PUNCH", func(): hero.act("punch"), 96))
-	col.add_child(UI.button("DODGE", func(): hero.act("dodge"), 96))
+	col.add_child(UI.button("JUMP", hero.jump, 84))
+	col.add_child(UI.button("PUNCH", punch, 84))
+	col.add_child(UI.button("DODGE", func(): hero.act("dodge"), 84))
+	col.add_child(UI.button("CROUCH", toggle_crouch, 84))
+	col.add_child(UI.button("AIM", toggle_aim, 84))
 	root.add_child(col)
 	var back := UI.button("BACK", func(): get_tree().change_scene_to_file("res://scenes/title.tscn"))
 	back.anchor_left = 0.0
@@ -216,4 +286,4 @@ func _notification(what: int) -> void:
 
 
 func bug_state() -> String:
-	return "3d test: hero %s speed %.1f dead %s" % [hero.global_position, hero.speed(), hero.dead]
+	return "3d test: hero %s mode %s speed %.1f aim %s dead %s" % [hero.global_position, hero.mode, hero.speed(), hero.aim_target != null, hero.dead]

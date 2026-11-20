@@ -18,7 +18,8 @@
 - Placeholder art is drawn in code. Real art comes through Foxboard (docs/ART.md).
 
 ## 3D characters (house standard, docs/MOVEMENT_3D.md)
-- Real skeleton, real clips, full 360-degree movement. Never a bobbing or tilting still.
+- The full range of movement the engine supports: real skeleton, real clips, physics. Never a bobbing
+  or tilting still.
 - Toon shading (3 bands, shade floor 0.35), 3 px ink outline on every character, warm rim light on
   the hero only. Low-poly (~5k tris) so several fit on a phone.
 - Camera high three-quarter (~50 degrees), floating stick on one half, actions on the other thumb.
