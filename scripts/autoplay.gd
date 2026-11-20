@@ -34,6 +34,8 @@ func _run() -> void:
 	_shot("intro")
 	await _click("SKIP")
 	await _wait_scene("Title")
+	var boot_ms := Time.get_ticks_msec()
+	_check(boot_ms < 10000, "BOOT PASS (title ready %.1f s after launch)" % (boot_ms / 1000.0))
 	await _frames(10)
 	_shot("title")
 	_check(_find("CONTINUE") == null, "TITLE PASS (no save yet)")
@@ -136,7 +138,9 @@ func _run() -> void:
 	await _click("3D CHARACTER TEST")
 	await _wait_scene("CharacterTest")
 	await _frames(20)
+	var coach_was: bool = get_tree().current_scene.has_node("UI/Root/Coach_move")
 	await _movement_checks(get_tree().current_scene)
+	await _standards_checks(get_tree().current_scene, coach_was)
 
 	if not failed:
 		print("AUTOPLAY PASS")
@@ -172,8 +176,8 @@ func _place(c: Node, p: Vector3, h: float) -> void:
 	c.heading = h
 	c.model.rotation.y = h
 	var sc := get_tree().current_scene
-	if sc.has_method("_place_camera") and c == sc.get("hero"):
-		sc._place_camera(1.0)                  # cut, don't pan, after a teleport
+	if sc.has_method("snap_camera") and c == sc.get("hero"):
+		sc.snap_camera()                       # cut, don't pan, after a teleport
 
 
 func _physics(n: int) -> void:
@@ -262,21 +266,22 @@ func _movement_checks(ct: Node) -> void:
 	_check(hero.backpedal and hero.speed() > 3.0, "BACKPEDAL PASS")
 	ct.bot_stick = Vector2.ZERO
 	await _click("AIM")
-	# Punch combo: jab, cross, hook; the hook knocks the dummy back (root motion).
+	# Punch combo: jab, cross, hook (a real tap, then the same function the button calls); the hook
+	# knocks the dummy back (root motion).
 	_place(hero, dummy.global_position + Vector3(0, 0.05, 1.0), PI)
 	await _physics(5)
 	await _click("PUNCH")
 	await _physics(4)
 	_check(hero.is_acting("punch") and dummy.is_acting("hit_chest"), "ACTION PASS (punch lands, dummy flinches)")
 	_shot("char_punch")
-	await _physics(30)
-	await _click("PUNCH")
-	await _physics(30)
+	await _physics(20)
+	ct.punch()
+	await _physics(25)
 	var d0: Vector3 = dummy.global_position
 	_place(hero, dummy.global_position + Vector3(0, 0.05, 1.0), PI)
-	await _click("PUNCH")
+	ct.punch()
 	await _physics(60)
-	_check(dummy.global_position.distance_to(d0) > 0.6, "KNOCKBACK PASS (dummy thrown %.1f m)" % dummy.global_position.distance_to(d0))
+	_check(ct.combo == 3 and dummy.global_position.distance_to(d0) > 0.6, "KNOCKBACK PASS (combo hook threw the dummy %.1f m)" % dummy.global_position.distance_to(d0))
 	await _click("DODGE")
 	await _physics(4)
 	_check(hero.is_acting("dodge"), "DODGE PASS")
@@ -318,6 +323,184 @@ func _movement_checks(ct: Node) -> void:
 			var mat := (m as MeshInstance3D).get_surface_override_material(i) as ShaderMaterial
 			inked = inked and mat != null and mat.next_pass != null
 	_check(inked, "INK PASS (toon + outline on every surface)")
+
+
+# ---------------------------------------------------------------- house standards (GROK_STANDARDS.md)
+
+func _contrast(img: Image, cam: Camera3D, c: Node) -> float:
+	var scale := Vector2(img.get_size()) / get_viewport().get_visible_rect().size
+	var lum := func(p: Vector2) -> float:
+		var tot := 0.0
+		for dx in range(-3, 4, 3):
+			for dy in range(-3, 4, 3):
+				var q := Vector2i((p * scale) + Vector2(dx, dy))
+				q = q.clamp(Vector2i.ZERO, img.get_size() - Vector2i.ONE)
+				tot += img.get_pixelv(q).get_luminance()
+		return tot / 9.0
+	var chest: Vector2 = cam.unproject_position(c.global_position + Vector3(0, 1.15, 0))
+	var feet: Vector2 = cam.unproject_position(c.global_position + Vector3(0, 0.05, 0))
+	var hips: Vector2 = cam.unproject_position(c.global_position + Vector3(0, 0.95, 0))
+	var hero_l: float = (lum.call(chest) + lum.call(hips)) / 2.0
+	var floor_l := 0.0
+	for o in [Vector2(-90, 0), Vector2(90, 0), Vector2(-90, 40), Vector2(90, 40)]:
+		floor_l += lum.call(feet + o) / 4.0
+	return (maxf(hero_l, floor_l) + 0.05) / (minf(hero_l, floor_l) + 0.05)
+
+
+func _standards_checks(ct: Node, coach_was: bool) -> void:
+	var hero: Node = ct.hero
+	var dummy: Node = ct.dummy
+	var feel: Node = get_node("/root/Feel")
+	var audio: Node = get_node("/root/Audio")
+	var controls: Node = get_node("/root/Controls")
+	# 7. First 60 seconds: the move hint showed, and went away once the player moved.
+	_check(coach_was and not ct.has_node("UI/Root/Coach_move") and preload("res://scripts/coach.gd").seen("move"),
+		"COACH PASS (DRAG TO MOVE shown, learned by doing)")
+	# 1 + 10. Game feel: the punches earlier fired every part.
+	_check(feel.shakes >= 3 and feel.bursts >= 3 and feel.buzzes >= 3 and feel.sounds >= 3,
+		"FEEL PASS (hit-stop, shake x%d, sparks x%d, sound, buzz x%d)" % [feel.shakes, feel.bursts, feel.buzzes])
+	# 2. Camera: smooth, never through a wall, frames the target.
+	ct.reset_dummy()
+	_place(hero, Vector3(0, 0.05, 0), 0.0)
+	await _physics(10)
+	var last: Vector3 = ct.rig.cam.global_position
+	var fastest := 0.0
+	ct.bot_stick = Vector2(1, 0)
+	for i in 50:
+		await _frames(1)
+		# Smooth = the camera glides: never faster than twice the hero's top speed (no jump cuts).
+		fastest = maxf(fastest, ct.rig.cam.global_position.distance_to(last) / maxf(get_process_delta_time(), 0.001))
+		last = ct.rig.cam.global_position
+	ct.bot_stick = Vector2.ZERO
+	_check(fastest < hero.max_speed * 2.0, "CAMERA SMOOTH PASS (camera top speed %.1f m/s)" % fastest)
+	_place(hero, Vector3(-12, 0.05, 2.2), 0.0)
+	await _physics(30)
+	var cam: Camera3D = ct.rig.cam
+	var see: Dictionary = get_tree().current_scene.get_world_3d().direct_space_state.intersect_ray(
+		PhysicsRayQueryParameters3D.create(cam.global_position, hero.global_position + Vector3(0, 1.2, 0), 1, [hero.get_rid()]))
+	_check(ct.rig.blocked and see.is_empty(), "CAMERA WALL PASS (camera came in front of the wall)")
+	_shot("std_camera_wall")
+	_place(hero, Vector3(0, 0.05, 4), PI)
+	dummy.global_position = Vector3(0, 0, -5)
+	ct.toggle_aim()
+	await _physics(120)
+	var vp := get_viewport().get_visible_rect()
+	var both: bool = vp.has_point(cam.unproject_position(hero.global_position + Vector3(0, 1, 0))) \
+		and vp.has_point(cam.unproject_position(dummy.global_position + Vector3(0, 1, 0))) \
+		and not cam.is_position_behind(dummy.global_position)
+	_check(both, "CAMERA FRAME PASS (hero and target both on screen)")
+	_shot("std_camera_frame")
+	# 6. Music shifts to the combat layer when fighting.
+	_check(audio.intensity > 0.9, "MUSIC PASS (combat layer at %d%%)" % int(audio.intensity * 100))
+	ct.toggle_aim()
+	ct.reset_dummy()
+	# 6. Footsteps per surface: stone floor, wooden ramp, grass.
+	hero.steps.clear()
+	for spot in [[Vector3(-2, 0.05, -1), Vector2(1, 0)], [Vector3(5, 0.05, 0.5), Vector2(0, -1)], [Vector3(-2, 0.1, 8), Vector2(1, 0)]]:
+		_place(hero, spot[0], 0.0)
+		ct.bot_stick = spot[1] * 0.5
+		await _physics(70)
+	ct.bot_stick = Vector2.ZERO
+	_check(hero.steps.has("stone") and hero.steps.has("wood") and hero.steps.has("grass"),
+		"STEPS PASS (%s)" % str(hero.steps))
+	# 6. Ducking: a heavy hit dips the music.
+	feel.impact(hero.global_position, 0.8, ct)
+	await _frames(8)
+	_check(audio.duck_db < -4.0, "DUCK PASS (music dipped %.0f dB)" % audio.duck_db)
+	# 4. Responsive: input buffer, coyote time, dodge cancels anything.
+	_place(hero, Vector3(0, 0.05, 2), 0.0)
+	await _physics(10)
+	hero.jump()
+	var buffered := false
+	var takeoffs := 0
+	var prev_vy := 0.0
+	for i in 120:
+		await _physics(1)
+		if hero.velocity.y > 3.0 and prev_vy <= 3.0:
+			takeoffs += 1
+		prev_vy = hero.velocity.y
+		if not buffered and hero.velocity.y < -2.0 and hero.global_position.y < 0.35:
+			hero.jump()                         # pressed before landing: must still jump
+			buffered = true
+	_check(takeoffs >= 2, "BUFFER PASS (jump pressed in the air fired on landing)")
+	_place(hero, Vector3(0, 1.05, -8.0), 0.0)
+	await _physics(10)
+	ct.bot_stick = Vector2(0, 1)
+	var coyote_ok := false
+	for i in 90:
+		await _physics(1)
+		if not hero.is_on_floor() and hero.velocity.y <= 0.0 and hero.global_position.y < 0.98:
+			await _physics(2)
+			hero.jump()
+			await _physics(1)
+			coyote_ok = hero.velocity.y > 3.0
+			break
+	ct.bot_stick = Vector2.ZERO
+	_check(coyote_ok, "COYOTE PASS (jumped just after leaving the edge)")
+	await _physics(60)
+	hero.act("punch")
+	await _physics(3)
+	hero.act("dodge")
+	await _physics(3)
+	_check(hero.is_acting("dodge") and not hero.is_acting("punch"), "CANCEL PASS (punch cancelled into a dodge)")
+	await _physics(110)
+	# 11. Gamepad + remapping, through the real input system.
+	_place(hero, Vector3(0, 0.05, 2), 0.0)
+	ct.bot_stick = Vector2.INF                # hand control back to the real inputs
+	await _physics(5)
+	var m := InputEventJoypadMotion.new()
+	m.axis = JOY_AXIS_LEFT_X
+	m.axis_value = 1.0
+	Input.parse_input_event(m)
+	await _physics(30)
+	var pad_speed: float = hero.velocity.x
+	m.axis_value = 0.0
+	Input.parse_input_event(m)
+	var b := InputEventJoypadButton.new()
+	b.button_index = JOY_BUTTON_A
+	b.pressed = true
+	await _physics(20)
+	Input.parse_input_event(b)
+	await _frames(3)                           # parsed input is delivered on the next frame
+	var pad_jump: bool = hero.mode == "air" or hero.velocity.y > 1.0
+	b.pressed = false
+	Input.parse_input_event(b)
+	_check(pad_speed > 3.0 and pad_jump, "PAD PASS (stick moves %.1f m/s, A jumps)" % pad_speed)
+	await _physics(80)
+	var k := InputEventKey.new()
+	k.physical_keycode = KEY_T
+	controls.rebind("jump", k)
+	var press := InputEventKey.new()
+	press.physical_keycode = KEY_T
+	press.pressed = true
+	Input.parse_input_event(press)
+	await _frames(3)
+	var remap_ok: bool = (hero.mode == "air" or hero.velocity.y > 1.0) and FileAccess.file_exists("user://controls.cfg")
+	press.pressed = false
+	Input.parse_input_event(press)
+	controls.reset()
+	_check(remap_ok,
+		"REMAP PASS (jump moved to T, saved, reset)")
+	await _physics(80)
+	# 5. The hero reads against the floor, in normal light and in the dark.
+	_place(hero, Vector3(-2, 0.05, 0.5), 0.0)
+	await _physics(20)
+	await RenderingServer.frame_post_draw
+	var c1: float = _contrast(get_viewport().get_texture().get_image(), cam, hero)
+	ct.sun.light_energy = 0.08
+	await _frames(3)
+	await RenderingServer.frame_post_draw
+	var c2: float = _contrast(get_viewport().get_texture().get_image(), cam, hero)
+	_shot("std_dark")
+	ct.sun.light_energy = 1.2
+	_check(c1 >= 2.0 and c2 >= 2.0, "READ PASS (hero vs floor contrast %.1f lit, %.1f dark)" % [c1, c2])
+	# 3. Frame budget: draw calls, triangles, code time with 6 characters running.
+	var r: Dictionary = await ct.perf_test(3.0, false)
+	_check(r.budget_ok, "PERF PASS (%d draw calls, %dk tris, %.1f ms code; budget %s)" % [
+		r.draw_calls, r.primitives / 1000.0, r.cpu_ms, str(ct.BUDGET)])
+	# 9. Telemetry stays on the phone unless allowed.
+	var tel: Node = get_node("/root/Telemetry")
+	_check(not tel.allowed() and tel.events().size() > 0, "TELEMETRY PASS (%d events kept on the phone, nothing sent)" % tel.events().size())
 
 
 # ---------------------------------------------------------------- helpers

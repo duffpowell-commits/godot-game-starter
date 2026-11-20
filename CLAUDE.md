@@ -8,7 +8,8 @@ first; it is the handoff between sessions.
 - Pitch: docs/PITCH.md. Queue (what to work on): QUEUE.md. Progress: tasks/todo.md.
 - Latest build: Releases -> `dev` -> `<repo>.apk` (rebuilt on every push to main). Template's own: https://github.com/duffpowell-commits/godot-game-starter/releases/tag/dev (first green CI Nov 19, build 2).
 - Waiting on Duff: tick Settings -> Template repository; make the keystone (docs/SIGNING.md: `KEYSTONE_PASS` secret here, then Actions -> make keystone). Until then CI signs with a throwaway key and warns.
-- Done: Milestone 0, items 1-14 (Nov 19) + 15, full 3D movement standard (Nov 20). List below.
+- Done: Milestone 0, items 1-14 (Nov 19) + 15 full movement + 16 the twelve standards (Nov 20). List below.
+- **GROK_STANDARDS.md is the rulebook** for every Duff game, for any coding AI. Keep it in sync when a rule changes.
 - Next: start a game from this template (docs/NEW_GAME.md), then Milestone 1 = the game's core loop.
 
 ## Milestone 0: what's already built (Duff approved items 1-14, Nov 19 2026)
@@ -37,7 +38,14 @@ first; it is the handoff between sessions.
     skeleton + glTF so it carries to another engine. Godot today: 8-way + strafe/backpedal, turn in
     place, jump/fall/land, crouch, foot IK, look-at, hit reactions + root-motion knockback, ragdoll,
     climb/vault/swim. `Character3D` (`scripts/character3d.gd`); playground `scenes/character_test.tscn`.
-Cut by Duff: playtest link + feedback sheet, phone frame-rate check.
+16. **The twelve game standards** (Duff, Nov 20), all in **GROK_STANDARDS.md** (the rulebook any coding AI
+    reads; AGENTS.md points to it; copy it into every game repo): game feel (`Feel` autoload), camera
+    (`camera_rig.gd`), frame budget (CI `PERF PASS` + dev menu PHONE SPEED TEST), responsive controls
+    (buffer, coyote, dodge-cancel in `Character3D`), readability (hero light), audio (footsteps per
+    surface, combat layer, ducking in `Audio`), first 60 s (`coach.gd`, `BOOT PASS`), portable assets,
+    telemetry + crash hook (`Telemetry`, offline, opt-in), haptics, gamepad + remap (`Controls`,
+    Settings -> CONTROLS), offline-first.
+Cut by Duff: playtest link + feedback sheet. (Phone frame-rate check came back as standard 3.)
 
 ## Layout
 - `scenes/` boot, intro, title, game (each a Control + script; UI is built in code).
@@ -48,6 +56,8 @@ Cut by Duff: playtest link + feedback sheet, phone frame-rate check.
 - `assets/audio/` (list every clip in SOURCES.md), `assets/art/`. `grok_art/` art drops, never ships.
 - `scripts/character3d.gd` 3D character standard (+ `foot_ik.gd`, `aim_twist.gd`, `ragdoll.gd`), `shaders/` toon
   + outline, `assets/models/` shared skeleton + clips (sources in SOURCES.md), `scenes/character_test.tscn` playground.
+- Autoloads also: Controls (actions + remaps), Feel (hit feel), Telemetry (local events, crash flag).
+  `camera_rig.gd` (3D camera), `coach.gd` (teach-by-doing hints).
 - `signing/` the keystone (encrypted) + `unlock.sh` (CI) + `make_keystone.sh` (once). `docs/renders/` autoplay screenshots.
 
 ## Commands

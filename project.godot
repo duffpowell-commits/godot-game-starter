@@ -18,10 +18,13 @@ buses/default_bus_layout="res://default_bus_layout.tres"
 
 [autoload]
 
+Controls="*res://scripts/controls.gd"
 Settings="*res://scripts/settings.gd"
 Save="*res://scripts/save_game.gd"
 Audio="*res://scripts/audio.gd"
 Subs="*res://scripts/subs.gd"
+Feel="*res://scripts/feel.gd"
+Telemetry="*res://scripts/telemetry.gd"
 Updater="*res://scripts/updater.gd"
 DebugMenu="*res://scripts/debug_menu.gd"
 Autoplay="*res://scripts/autoplay.gd"

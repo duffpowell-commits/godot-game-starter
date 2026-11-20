@@ -85,6 +85,10 @@ func open() -> void:
 	box.add_child(UI.button("3D CHARACTER TEST", func():
 		close()
 		get_tree().change_scene_to_file("res://scenes/character_test.tscn")))
+	box.add_child(UI.button("PHONE SPEED TEST", func():
+		close()
+		get_tree().root.set_meta("perf_test", true)
+		get_tree().change_scene_to_file("res://scenes/character_test.tscn")))
 	box.add_child(UI.button("CLEAR SAVE", func():
 		get_node("/root/Save").clear()
 		close()))

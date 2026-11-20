@@ -41,4 +41,43 @@ for c in chords:
         env = min(1, t * 4) * min(1, (2 - t) * 4)
         music.append(0.12 * env * sum(math.sin(2 * math.pi * f * t) for f in c))
 write("music_loop", music)
+
+
+def noise(dur, vol, decay, lowpass):
+    """Filtered noise burst: lowpass 0..1 (higher = duller)."""
+    out, prev = [], 0.0
+    for i in range(int(RATE * dur)):
+        t = i / RATE
+        prev = prev * lowpass + random.uniform(-1, 1) * (1 - lowpass)
+        out.append(vol * prev * math.exp(-decay * t / dur) * 3)
+    return out
+
+
+def mix(a, b):
+    n = max(len(a), len(b))
+    return [(a[i] if i < len(a) else 0) + (b[i] if i < len(b) else 0) for i in range(n)]
+
+
+# Footsteps per surface (game feel standard: each surface sounds different).
+write("step_stone", mix(noise(0.09, 0.45, 9, 0.35), tone([140], 0.06, 0.25, 9)))
+write("step_wood", mix(tone([210, 180], 0.11, 0.45, 7), noise(0.06, 0.2, 9, 0.6)))
+write("step_grass", noise(0.16, 0.35, 5, 0.15))
+write("step_water", mix(noise(0.22, 0.4, 4, 0.55), tone([500, 700, 400], 0.18, 0.12, 5)))
+# Hits: a light smack and a heavy thud.
+write("hit", mix(noise(0.08, 0.6, 8, 0.25), tone([180, 120], 0.1, 0.4, 6)))
+write("hit_heavy", mix(noise(0.18, 0.7, 6, 0.5), tone([110, 70], 0.3, 0.6, 4)))
+write("whoosh", noise(0.2, 0.3, 3, 0.8))
+
+# Combat layer: same 8 s and chords as music_loop plus a pulse, so the two crossfade in sync.
+combat = []
+for c in chords:
+    n = int(RATE * 2)
+    for i in range(n):
+        t = i / RATE
+        env = min(1, t * 4) * min(1, (2 - t) * 4)
+        beat = math.exp(-18 * ((t * 4) % 1))
+        combat.append(0.1 * env * sum(math.sin(2 * math.pi * f * t) for f in c)
+                      + 0.35 * beat * math.sin(2 * math.pi * 55 * t)
+                      + 0.06 * beat * random.uniform(-1, 1))
+write("music_combat", combat)
 print("ok")

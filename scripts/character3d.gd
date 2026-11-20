@@ -41,6 +41,8 @@ const ACTIONS := {
 const ROOT_MOTION := {"knockback": 0.5, "slide": 0.6}
 const DEATH := "Death01"
 const MODES := ["ground", "crouch", "air", "swim", "climb"]
+const BUFFER := 0.15                    # a press this early still counts (s)
+const COYOTE := 0.12                    # a jump this late off an edge still counts (s)
 
 @export var model_path := MODEL_DEFAULT
 @export var max_speed := 6.0
@@ -60,6 +62,7 @@ const MODES := ["ground", "crouch", "air", "swim", "climb"]
 @export var use_foot_ik := true
 @export var use_ragdoll := true
 @export var use_look_at := true
+@export var hero_light := false         # a soft key light that only lights characters: always readable
 
 var move_input := Vector2.ZERO          # x = right, y = toward the camera is +; like a stick
 var aim_target: Node3D = null           # set = strafe mode (chest faces it, 8-way legs)
@@ -89,9 +92,13 @@ var _coyote := 0.0
 var _stop_t := 0.0
 var _flash := 0.0
 var _climb := {}
+var _buffer := {}                       # action -> seconds it stays queued
+var steps := {}                         # surface -> footsteps heard (tests read this)
+var _foot_up := [false, false]
 
 
 func _ready() -> void:
+	add_to_group("characters")
 	_col = CollisionShape3D.new()
 	_cap = CapsuleShape3D.new()
 	_cap.radius = 0.3
@@ -115,6 +122,20 @@ func _ready() -> void:
 	_mats = apply_toon(model, tint, rim, outline_px)
 	_build_tree()
 	_build_modifiers()
+	if hero_light:
+		# Readability standard: the hero never goes black-on-black. This light only touches
+		# characters (visual layer 2), so the world's mood stays as lit.
+		for m in model.find_children("*", "MeshInstance3D", true, false):
+			(m as MeshInstance3D).layers = 1 | 2
+		var key := OmniLight3D.new()
+		key.name = "HeroLight"
+		key.position = Vector3(0.6, 2.4, 1.6)
+		key.omni_range = 4.0
+		key.light_energy = 0.9
+		key.light_color = Color(1.0, 0.93, 0.82)
+		key.light_cull_mask = 2
+		key.shadow_enabled = false
+		add_child(key)
 
 
 ## Swap every material on a model for toon + outline, keeping its colours/textures.
@@ -272,6 +293,10 @@ func _physics_process(dt: float) -> void:
 			tree.advance(dt)
 		return
 	var sdt := dt * time_scale
+	for a in _buffer.keys():
+		_buffer[a] -= dt
+		if _buffer[a] <= 0.0:
+			_buffer.erase(a)
 	tree.advance(sdt)
 	var rm := tree.get_root_motion_position()
 	_check_water()
@@ -282,6 +307,8 @@ func _physics_process(dt: float) -> void:
 			_do_swim(sdt)
 		_:
 			_do_walk(sdt, rm)
+	_flush_buffer()
+	_footsteps()
 	_update_look(dt)
 	foot_ik.floor_y = global_position.y
 	foot_ik.enabled_ik = use_foot_ik and is_on_floor() and mode in ["ground", "crouch"] and not is_acting("dodge")
@@ -306,12 +333,15 @@ func _do_walk(dt: float, rm: Vector3) -> void:
 	velocity.z = flat.z
 	# Air and landing.
 	if on_floor:
-		_coyote = 0.12
+		_coyote = COYOTE
 		if mode == "air":
 			mode = "crouch" if crouching else "ground"
 			_set_air("land")
 			landed.emit()
 		velocity.y = 0.0
+		if _buffer.has("jump"):                # pressed just before landing: jump now
+			_buffer.erase("jump")
+			_jump_now()
 	else:
 		_coyote -= dt
 		velocity.y -= gravity * dt
@@ -361,7 +391,10 @@ func _do_walk(dt: float, rm: Vector3) -> void:
 
 
 func jump() -> void:
-	if dead or mode == "climb":
+	if dead:
+		return
+	if mode == "climb" or _stunned():
+		_buffer["jump"] = BUFFER
 		return
 	if mode == "swim":
 		var l := _find_ledge(true)
@@ -376,12 +409,18 @@ func jump() -> void:
 			_start_climb(ledge)
 			return
 	if _coyote > 0.0 or is_on_floor():
-		if crouching:
-			set_crouch(false)
-		velocity.y = jump_speed
-		_coyote = 0.0
-		mode = "air"
-		_set_air("start")
+		_jump_now()
+	else:
+		_buffer["jump"] = BUFFER               # still in the air: jump the moment you land
+
+
+func _jump_now() -> void:
+	if crouching:
+		set_crouch(false)
+	velocity.y = jump_speed
+	_coyote = 0.0
+	mode = "air"
+	_set_air("start")
 
 
 func set_crouch(on: bool) -> void:
@@ -521,9 +560,37 @@ func _do_swim(dt: float) -> void:
 # ---------------------------------------------------------------- actions, hits, death
 
 func act(what: String) -> void:
-	if dead or not ACTIONS.has(what) or mode == "climb":
+	if dead or not ACTIONS.has(what):
 		return
+	if mode == "climb" or (_stunned() and what != "dodge"):
+		_buffer[what] = BUFFER                 # queued: fires the moment you're free
+		return
+	if what == "dodge":
+		# Every action cancels into a dodge: stop whatever is playing, roll now.
+		for a in ACTIONS:
+			if a != "dodge" and is_acting(a):
+				tree.set("parameters/shot_%s/request" % a, AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
+		if crouching:
+			set_crouch(false)
 	tree.set("parameters/shot_%s/request" % what, AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+
+
+## Knocked back: can't act (except dodge) until the clip ends. Presses made now are buffered.
+func _stunned() -> bool:
+	return is_acting("knockback")
+
+
+func _flush_buffer() -> void:
+	if mode == "climb" or _stunned() or dead:
+		return
+	for a in _buffer.keys():
+		if a == "jump":
+			if is_on_floor() or _coyote > 0.0:
+				_buffer.erase(a)
+				_jump_now()
+		elif ACTIONS.has(a):
+			_buffer.erase(a)
+			act(a)
 
 
 func is_acting(what: String) -> bool:
@@ -608,6 +675,29 @@ func is_ragdoll() -> bool:
 
 func speed() -> float:
 	return Vector2(velocity.x, velocity.z).length()
+
+
+## A footstep each time a foot comes down (from the animation itself), sound picked by the
+## surface under it: StaticBody3D meta "surface" ("stone", "wood", "grass", "water"...).
+func _footsteps() -> void:
+	if mode != "ground" and mode != "crouch" or not is_on_floor() or speed() < 0.4:
+		return
+	var feet := ["foot_l", "foot_r"]
+	for i in 2:
+		var y := skeleton.get_bone_global_pose(skeleton.find_bone(feet[i])).origin.y
+		if y > 0.16:
+			_foot_up[i] = true
+		elif y < 0.125 and _foot_up[i]:
+			_foot_up[i] = false
+			var surface := "stone"
+			var at := skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone(feet[i])).origin
+			var hit := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(at + Vector3.UP * 0.3, at + Vector3.DOWN * 0.6, 1 | 2, [get_rid()]))
+			if not hit.is_empty() and hit.collider is Object and (hit.collider as Object).has_meta("surface"):
+				surface = str((hit.collider as Object).get_meta("surface"))
+			steps[surface] = int(steps.get(surface, 0)) + 1
+			var audio := get_node_or_null("/root/Audio")
+			if audio != null:
+				audio.step(surface)
 
 
 func _set_mode(m: String) -> void:

@@ -8,19 +8,18 @@ extends Node3D
 ## three-quarter (50 degrees down), follows with look-ahead, never rotates.
 
 const UI = preload("res://scripts/ui.gd")
+const CameraRig = preload("res://scripts/camera_rig.gd")
+const Coach = preload("res://scripts/coach.gd")
 const Character3D = preload("res://scripts/character3d.gd")
 const TOON = preload("res://shaders/toon.gdshader")
 
-const CAM_PITCH := deg_to_rad(50.0)
-const CAM_DIST := 7.5
-const LOOK_AHEAD := 0.35
 const WORLD := 1 | 2              # body floors + feet floors
 const FEET := 2                   # only feet (visual steps); bodies use the hidden ramp
 const COMBO_GAP := 0.8
 
 var hero: Character3D
 var dummy: Character3D
-var cam: Camera3D
+var rig: CameraRig
 var sun: DirectionalLight3D
 var stick_origin := Vector2.ZERO
 var stick_vec := Vector2.ZERO
@@ -53,16 +52,23 @@ func _ready() -> void:
 	_build_world()
 	hero = Character3D.new()
 	hero.rim = 1.4
+	hero.hero_light = true
 	add_child(hero)
 	dummy = Character3D.new()
 	dummy.tint = Color(0.75, 0.35, 0.35)
 	dummy.position = _dummy_spawn
 	add_child(dummy)
-	cam = Camera3D.new()
-	cam.fov = 45
-	add_child(cam)
-	_place_camera(1.0)
+	rig = CameraRig.new()
+	rig.follow = hero
+	add_child(rig)
+	rig.snap()
 	_build_ui()
+	var audio := get_node("/root/Audio")
+	audio.music_layers("music_loop", "music_combat")
+	audio.set_intensity(0.0)
+	if get_tree().root.get_meta("perf_test", false):
+		get_tree().root.remove_meta("perf_test")
+		perf_test.call_deferred()
 
 
 # ---------------------------------------------------------------- the playground
@@ -70,7 +76,7 @@ func _ready() -> void:
 func _build_world() -> void:
 	var floor_c := Color("3a4256")
 	# Floor in four pieces round the pool (x -9..-4, z -10..-5).
-	_box(Vector3(-20, -1, -20), Vector3(20, 0, -10), floor_c)
+	_box(Vector3(-20, -1, -20), Vector3(20, 0, -10), floor_c)   # floors default to "stone"
 	_box(Vector3(-20, -1, -5), Vector3(20, 0, 20), floor_c)
 	_box(Vector3(-20, -1, -10), Vector3(-9, 0, -5), floor_c)
 	_box(Vector3(-4, -1, -10), Vector3(20, 0, -5), floor_c)
@@ -97,15 +103,19 @@ func _build_world() -> void:
 	wm.material_override = wmat
 	add_child(wm)
 	# Slope: 15 degrees up toward -z, then a deck.
-	var ramp := _box(Vector3(-1.25, -0.1, -2.5), Vector3(1.25, 0.1, 2.5), Color("4a5168"))
-	ramp.position = Vector3(5, 0.65, -3)
+	var ramp := _box(Vector3(-1.25, -0.1, -2.5), Vector3(1.25, 0.1, 2.5), Color("7a5a3a"))
+	ramp.set_meta("surface", "wood")
+	ramp.position = Vector3(5, 0.55, -3)          # near edge flush with the floor
 	ramp.rotation.x = deg_to_rad(15)
 	_box(Vector3(3.75, 0, -8.5), Vector3(6.25, 1.3, -5.4), Color("4a5168"))
 	# Stairs up toward -x: visual steps for the feet, a hidden ramp for the body.
 	for i in 8:
 		var x0 := -2.0 - i * 0.35
-		_box(Vector3(x0 - 0.35, 0, 2), Vector3(x0, 0.18 * (i + 1), 4), Color("525a72"), FEET)
-	_box(Vector3(-7.6, 0, 2), Vector3(-4.8, 1.44, 4), Color("525a72"))
+		_box(Vector3(x0 - 0.35, 0, 2), Vector3(x0, 0.18 * (i + 1), 4), Color("7a5a3a"), FEET).set_meta("surface", "wood")
+	_box(Vector3(-7.6, 0, 2), Vector3(-4.8, 1.44, 4), Color("7a5a3a")).set_meta("surface", "wood")
+	# Grass patch, and a tall wall the camera must not see through.
+	_box(Vector3(-3, 0, 6), Vector3(3, 0.02, 10), Color("3f6b3a")).set_meta("surface", "grass")
+	_box(Vector3(-14, 0, 4), Vector3(-10, 6, 4.4), Color("4a5168"))
 	var stair_ramp := StaticBody3D.new()
 	stair_ramp.collision_layer = 1
 	var sr := CollisionShape3D.new()
@@ -143,12 +153,9 @@ func _box(a: Vector3, b: Vector3, c: Color, layer: int = WORLD) -> StaticBody3D:
 	return body
 
 
-func _place_camera(k: float) -> void:
-	var v := hero.velocity
-	var target := hero.global_position + Vector3(v.x, 0, v.z) * LOOK_AHEAD + Vector3(0, 1.0, 0)
-	var want := target + Vector3(0, sin(CAM_PITCH), cos(CAM_PITCH)) * CAM_DIST
-	cam.global_position = cam.global_position.lerp(want, k)
-	cam.rotation = Vector3(-CAM_PITCH, 0, 0)
+## Cut the camera to the hero (after a teleport).
+func snap_camera() -> void:
+	rig.snap()
 
 
 func _process(dt: float) -> void:
@@ -158,12 +165,14 @@ func _process(dt: float) -> void:
 	elif stick_down:
 		v = stick_vec
 	else:
-		v = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-		for k in [[KEY_A, Vector2.LEFT], [KEY_D, Vector2.RIGHT], [KEY_W, Vector2.UP], [KEY_S, Vector2.DOWN]]:
-			if Input.is_physical_key_pressed(k[0]):
-				v += k[1]
+		v = Input.get_vector("move_left", "move_right", "move_up", "move_down")   # keys + pad stick
 	hero.move_input = v.limit_length(1.0)
-	_place_camera(clampf(dt * 6.0, 0.0, 1.0))
+	rig.frame_target = dummy if hero.aim_target != null else null
+	# Music: explore layer, crossfading to the combat layer near a live enemy.
+	var near := not dummy.dead and hero.global_position.distance_to(dummy.global_position) < 4.0
+	get_node("/root/Audio").set_intensity(1.0 if near or hero.aim_target != null else 0.0)
+	if Coach.seen("move") and not Coach.seen("punch") and not has_node("UI/Root/Coach_punch"):
+		Coach.teach($UI/Root, "punch", "TAP PUNCH", func(): return hero.is_acting("punch"))
 	combo_t -= dt
 	# A punch lands if it reaches: close, in front, mid-swing. The dummy flinches or is knocked back.
 	var swing := ""
@@ -180,8 +189,73 @@ func _process(dt: float) -> void:
 			_landed_on = swing
 			dummy.hit(hero.global_position + Vector3(0, 1.2, 0), 0.6 if swing == "hook" else 0.3)
 			hero.hit_stop(0.06)                # the attacker freezes too: hit-stop sells the impact
-			UI.buzz(25)
+			get_node("/root/Feel").impact(dummy.global_position + Vector3(0, 1.3, 0), 0.6 if swing == "hook" else 0.3, self)
 	stick_area.queue_redraw()
+
+
+# ---------------------------------------------------------------- frame budget
+
+## Budgets a 3D scene must stay under (GROK_STANDARDS.md #3). CI checks these numbers on every
+## push (they don't depend on the GPU); the PHONE SPEED TEST checks real fps on the phone.
+const TARGET_FPS := 60
+const BUDGET := {"draw_calls": 250, "primitives": 300000, "cpu_ms": 8.0}   # cpu = physics step + game code
+
+var perf_result := {}
+
+
+## A typical fight: hero + 3 others on screen (2 extra runners + the dummy) for `secs` running laps for `secs`, then shows the numbers.
+## In the dev menu: PHONE SPEED TEST. Pass on the phone = average >= 58 fps, 1% low >= 45.
+func perf_test(secs: float = 10.0, show := true) -> Dictionary:
+	var crowd: Array[Character3D] = []
+	for i in 2:
+		var c := Character3D.new()
+		c.tint = Color.from_hsv(0.1 * i + 0.5, 0.5, 0.9)
+		c.position = Vector3(-4 + i * 2.5, 0, -1)
+		add_child(c)
+		crowd.append(c)
+	var frames: Array[float] = []
+	var calls := 0.0
+	var prims := 0.0
+	var cpu := 0.0
+	var n := 0
+	var t := 0.0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	while t < secs:
+		var dt := get_process_delta_time()
+		t += dt
+		for i in crowd.size():
+			crowd[i].move_input = Vector2(cos(t * 1.3 + i), sin(t * 1.3 + i))
+		bot_stick = Vector2(cos(t), sin(t)) * 0.7
+		await get_tree().process_frame
+		frames.append(dt)
+		calls += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+		prims += Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)
+		cpu += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+		n += 1
+	bot_stick = Vector2.INF
+	for c in crowd:
+		c.queue_free()
+	frames.sort()
+	var avg_dt := 0.0
+	for f in frames:
+		avg_dt += f
+	avg_dt /= maxf(frames.size(), 1)
+	var low_dt: float = frames[int(frames.size() * 0.99)] if frames.size() > 0 else 1.0
+	perf_result = {
+		"fps": 1.0 / maxf(avg_dt, 0.0001), "low_fps": 1.0 / maxf(low_dt, 0.0001),
+		"draw_calls": calls / n, "primitives": prims / n, "cpu_ms": cpu / n,
+	}
+	perf_result["budget_ok"] = perf_result.draw_calls <= BUDGET.draw_calls and perf_result.primitives <= BUDGET.primitives and perf_result.cpu_ms <= BUDGET.cpu_ms
+	perf_result["phone_ok"] = perf_result.fps >= TARGET_FPS - 2 and perf_result.low_fps >= 45
+	get_node("/root/Telemetry").event("perf_test", perf_result)
+	if show:
+		var box := UI.sheet(self, 460)
+		box.add_child(UI.label("SPEED TEST: " + ("PASS" if perf_result.phone_ok and perf_result.budget_ok else "FAIL"), 28, UI.key("good" if perf_result.phone_ok else "bad")))
+		box.add_child(UI.label("%d fps average, %d fps worst 1%%\n%d draw calls, %dk triangles, %.1f ms code" % [
+			perf_result.fps, perf_result.low_fps, perf_result.draw_calls, perf_result.primitives / 1000.0, perf_result.cpu_ms], 20))
+		box.add_child(UI.button("DONE", func(): UI.close_sheet(box)))
+	return perf_result
 
 
 func punch() -> void:
@@ -204,14 +278,19 @@ func reset_dummy() -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e is InputEventKey and e.pressed and not e.echo:
-		match e.keycode:
-			KEY_SPACE: hero.jump()
-			KEY_J: punch()
-			KEY_K: hero.act("dodge")
-			KEY_C: toggle_crouch()
-			KEY_L: toggle_aim()
-			KEY_X: reset_dummy() if dummy.dead else dummy.die(Vector3(0, 2, -6))
+	# Actions, not keys: works with keyboard, gamepad and the player's remaps (Controls autoload).
+	if e.is_action_pressed("jump"):
+		hero.jump()
+	elif e.is_action_pressed("attack"):
+		punch()
+	elif e.is_action_pressed("dodge"):
+		hero.act("dodge")
+	elif e.is_action_pressed("crouch"):
+		toggle_crouch()
+	elif e.is_action_pressed("aim"):
+		toggle_aim()
+	elif e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_X:
+		reset_dummy() if dummy.dead else dummy.die(Vector3(0, 2, -6))
 
 
 # ---------------------------------------------------------------- UI
@@ -219,7 +298,9 @@ func _unhandled_input(e: InputEvent) -> void:
 func _build_ui() -> void:
 	ui = CanvasLayer.new()
 	add_child(ui)
+	ui.name = "UI"
 	var root := Control.new()
+	root.name = "Root"
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.theme = UI.theme()
@@ -256,11 +337,7 @@ func _build_ui() -> void:
 	back.offset_top = 30
 	back.offset_bottom = 30 + UI.MIN_TOUCH
 	root.add_child(back)
-	var hint := UI.label("Drag on the %s half to move" % ("right" if left else "left"), 18, UI.DIM)
-	hint.anchor_right = 1.0
-	hint.offset_top = 110
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(hint)
+	Coach.teach(root, "move", "DRAG TO MOVE", func(): return hero.speed() > 1.0)
 
 
 func _stick_input(e: InputEvent) -> void:

@@ -113,3 +113,81 @@ func test_bug_report_text() -> void:
 	check(t.begins_with("it broke"), "note first")
 	check("build:" in t and "device:" in t, "build + device added")
 	check(BugReport.issue_url(t).contains("/issues/new?"), "issue link")
+
+
+# ---------------------------------------------------------------- house standards (GROK_STANDARDS.md)
+
+## 11. Every game action works on keyboard AND gamepad, and remaps survive a restart.
+func test_controls_keyboard_and_pad() -> void:
+	var c: Node = root.get_node("Controls")
+	for a in c.ACTIONS:
+		var has_key := false
+		var has_pad := false
+		for e in InputMap.action_get_events(a):
+			has_key = has_key or e is InputEventKey
+			has_pad = has_pad or c.is_pad(e)
+		check(has_key and has_pad, a + " has a key and a pad input")
+	var k := InputEventKey.new()
+	k.physical_keycode = KEY_G
+	c.rebind("attack", k)
+	var fresh: Node = load("res://scripts/controls.gd").new()
+	fresh._load()
+	check(fresh._custom.has("attack") and (fresh._custom.attack.key as InputEventKey).physical_keycode == KEY_G, "remap saved and loaded")
+	fresh.free()
+	c.reset()
+	check(not InputMap.action_has_event("attack", k), "reset restores defaults")
+
+
+## 9 + 12. Stats stay on the phone unless the player opts in AND an endpoint is set; a run that
+## didn't close cleanly is spotted next launch.
+func test_telemetry_offline_and_crash_flag() -> void:
+	var t: Node = root.get_node("Telemetry")
+	check(not t.allowed(), "nothing is sent by default")
+	var before: int = t.events().size()
+	t.event("unit_test", {"x": 1})
+	check(t.events().size() == before + 1, "event kept locally")
+	var f := FileAccess.open(t.RUN_FLAG, FileAccess.WRITE)
+	f.store_string("Game v0.1.0")
+	f = null
+	var fresh: Node = load("res://scripts/telemetry.gd").new()
+	root.add_child(fresh)
+	check(fresh.crashed_last_run, "unclean exit detected")
+	fresh.clean_exit()
+	check(not FileAccess.file_exists(t.RUN_FLAG), "clean exit clears the flag")
+	fresh.queue_free()
+	var http := 0
+	for n in root.find_children("*", "HTTPRequest", true, false):
+		if t.is_ancestor_of(n):
+			http += 1
+	check(http == 0, "no network request without consent")
+
+
+## 8. Portable assets: every model is glTF on the standard humanoid skeleton and listed in SOURCES.
+func test_models_portable() -> void:
+	var sources := FileAccess.get_file_as_string("res://assets/models/SOURCES.md")
+	var d := DirAccess.open("res://assets/models")
+	var count := 0
+	for f in d.get_files():
+		if f.ends_with(".import") or f.ends_with(".md"):
+			continue
+		count += 1
+		check(f.ends_with(".glb") or f.ends_with(".gltf"), f + " is glTF")
+		check(f in sources, f + " listed in SOURCES.md")
+		var scene: Node = (load("res://assets/models/" + f) as PackedScene).instantiate()
+		var sk := scene.find_children("*", "Skeleton3D", true, false)
+		check(sk.size() == 1, f + " has one skeleton")
+		if sk.size() == 1:
+			for b in ["pelvis", "spine_01", "Head", "thigh_l", "calf_l", "foot_l", "upperarm_r", "hand_r"]:
+				check((sk[0] as Skeleton3D).find_bone(b) >= 0, f + " has bone " + b)
+		scene.free()
+	check(count > 0, "models found")
+
+
+## 7. Coach hints are short (no text walls).
+func test_coach_hints_short() -> void:
+	var re := RegEx.create_from_string('Coach\\.teach\\([^,]+,\\s*"[^"]+",\\s*"([^"]+)"')
+	for f in ["res://scripts/character_test.gd", "res://scripts/game.gd"]:
+		if not FileAccess.file_exists(f):
+			continue
+		for m in re.search_all(FileAccess.get_file_as_string(f)):
+			check(m.get_string(1).split(" ", false).size() <= 4, "hint '%s' is 4 words or fewer" % m.get_string(1))

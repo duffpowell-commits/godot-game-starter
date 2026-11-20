@@ -22,6 +22,7 @@ const DEFAULTS := {
 	"subtitles": true,
 	"high_contrast": false,
 	"colorblind": false,   # Okabe-Ito key colours (see ui.gd KEYS)
+	"share_stats": false,  # anonymous stats/crash reports leave the phone only if ON (and a URL is set)
 	"intro_seen": false,   # the intro plays once; after that it never forces itself
 }
 

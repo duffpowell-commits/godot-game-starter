@@ -4,7 +4,7 @@
    template** -> Create a new repository. Name it after the game (that becomes the APK name and the
    package `com.duffpowell.<name>`). Public keeps Actions free.
 2. In the new repo add the `KEYSTONE_PASS` secret, same passphrase as every game (docs/SIGNING.md).
-3. Tell Claude: "read CLAUDE.md and set up <game>". The session renames `config/name` in
+3. Tell your coding AI (Claude or Grok): "read AGENTS.md and set up <game>". It renames `config/name` in
    project.godot, fills docs/PITCH.md (game-greenlight), rewrites CLAUDE.md's top, and starts
    Milestone 1 from QUEUE.md.
 4. First push to main builds the APK: Releases -> dev -> tap the APK to install. Every later build

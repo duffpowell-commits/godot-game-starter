@@ -23,6 +23,10 @@ static func report_text(note: String, tree: SceneTree) -> String:
 			str(DisplayServer.screen_get_size())],
 		"scene: %s" % (scene.scene_file_path if scene != null else "?"),
 	]
+	var tel := tree.root.get_node_or_null("Telemetry")
+	if tel != null and tel.crashed_last_run:
+		lines.append("crashed last run: yes")
+	lines.append("fps: %d" % Engine.get_frames_per_second())
 	if state != "":
 		lines.append("state: " + state)
 	return "\n".join(lines)

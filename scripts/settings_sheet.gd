@@ -35,6 +35,8 @@ static func open(parent: Node) -> VBoxContainer:
 	_toggle(col, s, "INVERT LOOK", "invert_y")
 	_slider(col, s, "LOOK SENSITIVITY", "sensitivity", 0.3, 2.0)
 	_toggle(col, s, "LOW GRAPHICS", "low_graphics")
+	_toggle(col, s, "SHARE ANONYMOUS STATS", "share_stats")
+	col.add_child(UI.button("CONTROLS", func(): open_controls(parent)))
 	box.add_child(UI.button("DONE", func(): UI.close_sheet(box)))
 	return box
 
@@ -67,3 +69,46 @@ static func _slider(col: Control, s: Node, title: String, key: String, lo: float
 	sl.focus_mode = Control.FOCUS_NONE
 	sl.value_changed.connect(func(v: float): s.set_value(key, v))
 	col.add_child(sl)
+
+
+## CONTROLS: every action with its key / pad input. Tap one, then press the new key or button.
+static func open_controls(parent: Node) -> VBoxContainer:
+	var c: Node = parent.get_node("/root/Controls")
+	var box := UI.sheet(parent, 500)
+	box.add_child(UI.label("CONTROLS", 28, UI.ACCENT))
+	var hint := UI.label("Tap an action, then press a key or pad button", 18, UI.DIM)
+	box.add_child(hint)
+	for a in c.ACTIONS:
+		var b := UI.button(c.ACTIONS[a] + ": " + c.describe(a), Callable(), 64)
+		b.name = a
+		b.pressed.connect(func():
+			hint.text = "Press a key or button for " + c.ACTIONS[a]
+			var cap := _Capture.new()
+			cap.done = func(e: InputEvent):
+				c.rebind(a, e)
+				b.text = c.ACTIONS[a] + ": " + c.describe(a)
+				hint.text = "Saved"
+			box.add_child(cap))
+		box.add_child(b)
+	box.add_child(UI.button("RESET TO DEFAULTS", func():
+		c.reset()
+		UI.close_sheet(box)
+		open_controls(parent)))
+	box.add_child(UI.button("DONE", func(): UI.close_sheet(box)))
+	return box
+
+
+## Grabs the next key / pad button / stick push, then removes itself.
+class _Capture extends Node:
+	var done: Callable
+
+	func _input(e: InputEvent) -> void:
+		var ok: bool = (e is InputEventKey and e.pressed and not e.echo) or (e is InputEventJoypadButton and e.pressed) \
+			or (e is InputEventJoypadMotion and absf(e.axis_value) > 0.6)
+		if not ok:
+			return
+		if e is InputEventJoypadMotion:
+			e.axis_value = signf(e.axis_value)
+		get_viewport().set_input_as_handled()
+		done.call(e)
+		queue_free()
