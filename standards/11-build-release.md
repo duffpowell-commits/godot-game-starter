@@ -24,7 +24,7 @@ as run artifacts.
 Actions -> "send clip to Buffer drafts" -> Run (works from the phone). It leaves one DRAFT per video
 channel in Buffer; **nothing is published or queued to go live** until Duff schedules it in the
 Buffer app. Needs the `BUFFER_API_KEY` repo secret (Duff: publish.buffer.com/settings/api ->
-create key -> repo Settings -> Secrets -> Actions). Free Buffer = 3 channels, 10 queued posts each.
+create key -> repo Settings -> Secrets -> Actions). Free Buffer = 3 channels, 10 queued posts each: TikTok, YouTube Shorts, Instagram (Duff, Nov 21; workflow default).
 The clip link must be public (public repos). `tools/test_buffer_drafts.py` proves drafts-only.
 
 ## Engine version

@@ -12,8 +12,9 @@ on:
         description: "Post text (blank = game name + tags)"
         required: false
       channels:
-        description: "Only these services, comma list (blank = every video channel in Buffer)"
+        description: "Services to draft to, comma list (Duff picked TikTok, Shorts, Instagram)"
         required: false
+        default: "tiktok,youtube,instagram"
 
 jobs:
   drafts:
