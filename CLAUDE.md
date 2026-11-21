@@ -9,7 +9,10 @@ first; it is the handoff between sessions.
 - Latest build: Releases -> `dev` -> `<repo>.apk` (rebuilt on every push to main). Template's own: https://github.com/duffpowell-commits/godot-game-starter/releases/tag/dev (first green CI Nov 19, build 2).
 - Waiting on Duff: tick Settings -> Template repository; make the keystone (docs/SIGNING.md: `KEYSTONE_PASS` secret here, then Actions -> make keystone). Until then CI signs with a throwaway key and warns.
 - Done: Milestone 0, items 1-14 (Nov 19) + 15 full movement + 16 the twelve standards (Nov 20). List below.
-- **GROK_STANDARDS.md is the rulebook** for every Duff game, for any coding AI. Keep it in sync when a rule changes.
+- **GROK_STANDARDS.md is the rulebook index** for every Duff game, for any coding AI; the rules live in
+  `standards/*.md` (one topic each, <= 60 lines, `test_standards_index`). Copy both into game repos
+  (hunter has them); change rules here, then re-sync.
+- **Engine: Godot 4.6.3** (Nov 21; was 4.5). `GODOT_VERSION` in build.yml + `config/features`.
 - Next: start a game from this template (docs/NEW_GAME.md), then Milestone 1 = the game's core loop.
 
 ## Milestone 0: what's already built (Duff approved items 1-14, Nov 19 2026)
@@ -49,11 +52,19 @@ first; it is the handoff between sessions.
     (metres, feet on 0, +Z; `test_models_portable`), texture imports explicit
     (`test_texture_imports_explicit`), controls legend (`controls_legend.gd`, `LEGEND PASS`), no
     "seamless tile" prompts.
+18. **Phone kit + build clip** (Duff, Nov 21): quality tier picked on first launch (`quality.gd`, Settings
+    -> GRAPHICS, `TIER PASS`), background scene loads (`Loader.go`, `LOAD PASS`), atlases
+    (`atlas.gd` + `tools/pack_atlas.py`, `test_atlas_regions`), ETC2/ASTC check, and the bot's 10 s
+    gameplay clip (`CLIP PASS`; 15 s, vertical 720x1280; CI posts `<repo>_gameplay.mp4` to the dev release).
+19. **QoL + social** (Duff, Nov 21): battery saver (`Battery` autoload, `BATTERY PASS`), GAME MUSIC off so the
+    player's own music plays (iOS mixes with others), Buffer drafts workflow (`buffer_drafts.yml`, needs
+    `BUFFER_API_KEY` secret; drafts only, `tools/test_buffer_drafts.py`). After engine upgrades delete
+    `.godot/imported/` (stale 4.5 cache = T-pose; `bind_skins` + `SKIN PASS`).
 Cut by Duff: playtest link + feedback sheet. (Phone frame-rate check came back as standard 3.)
 
 ## Layout
 - `scenes/` boot, intro, title, game (each a Control + script; UI is built in code).
-- `scripts/` autoloads: Settings, Save, Audio, Subs, Updater, DebugMenu, Autoplay. Helpers:
+- `scripts/` autoloads: Controls, Settings, Save, Audio, Subs, Feel, Telemetry, Loader, Battery, Updater, DebugMenu, Autoplay. Helpers:
   `ui.gd` (theme, buttons, sheets, colours), `config.gd` (build number, repo), `bug_report.gd`,
   `settings_sheet.gd`. `game.gd` = placeholder "Orb Catch": replace its PLAY section, keep the rest.
 - `tests/run_tests.gd` rule tests. `tools/` check_scripts.gd, autoplay.sh, gen_audio.py (placeholder sounds).

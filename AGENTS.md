@@ -1,9 +1,9 @@
 # AGENTS.md
 
-Any coding AI working in this repo (Grok, Claude, Copilot, Codex...): read **GROK_STANDARDS.md**
-first and follow it. It is the full rulebook for Duff's games: Milestone 0 (copy the template, don't
-rebuild it), full-range 3D movement, the twelve game standards, the keystone signing key, the in-app
-updater and REPORT A BUG, "green merges itself", and phone-only (no desktop steps for Duff).
+Any coding AI working in this repo (Grok, Claude, Copilot, Codex...): open **GROK_STANDARDS.md**
+first. It is the index of Duff's rulebook, split into small files in `standards/`. Always read
+`standards/00-core.md` (phone-only, "green merges itself", what done means), then only the topic
+files your task touches (movement, controls, performance, art, build/signing...).
 
 Then read **CLAUDE.md** (this repo's handoff: what's built, commands, layout). Repo-specific rules
 in CLAUDE.md win where they are more specific.

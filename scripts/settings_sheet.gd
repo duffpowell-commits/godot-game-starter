@@ -3,6 +3,7 @@ extends RefCounted
 ## Changing text size or high contrast rebuilds the sheet so the new look shows at once.
 
 const UI = preload("res://scripts/ui.gd")
+const Quality = preload("res://scripts/quality.gd")
 
 
 static func open(parent: Node) -> VBoxContainer:
@@ -19,6 +20,7 @@ static func open(parent: Node) -> VBoxContainer:
 	scroll.add_child(col)
 
 	_slider(col, s, "MUSIC", "music", 0.0, 1.0)
+	_toggle(col, s, "GAME MUSIC", "game_music")
 	_slider(col, s, "SOUND EFFECTS", "sfx", 0.0, 1.0)
 	_slider(col, s, "BRIGHTNESS", "gamma", 0.6, 1.6)
 	_toggle(col, s, "VIBRATION", "vibration")
@@ -34,8 +36,14 @@ static func open(parent: Node) -> VBoxContainer:
 	_toggle(col, s, "LEFT-HANDED CONTROLS", "left_handed")
 	_toggle(col, s, "INVERT LOOK", "invert_y")
 	_slider(col, s, "LOOK SENSITIVITY", "sensitivity", 0.3, 2.0)
-	_toggle(col, s, "LOW GRAPHICS", "low_graphics")
+	var q_b := UI.button("GRAPHICS: " + Quality.NAMES[maxi(int(s.get_value("tier")), 0)])
+	q_b.name = "tier"
+	q_b.pressed.connect(func():
+		Quality.apply(parent.get_tree(), (maxi(int(s.get_value("tier")), 0) + 1) % 3)
+		q_b.text = "GRAPHICS: " + Quality.NAMES[int(s.get_value("tier"))])
+	col.add_child(q_b)
 	_toggle(col, s, "CONTROLS LEGEND", "show_legend")
+	_toggle(col, s, "BATTERY SAVER", "battery_saver")
 	_toggle(col, s, "SHARE ANONYMOUS STATS", "share_stats")
 	col.add_child(UI.button("CONTROLS", func(): open_controls(parent)))
 	box.add_child(UI.button("DONE", func(): UI.close_sheet(box)))

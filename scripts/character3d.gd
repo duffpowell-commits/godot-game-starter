@@ -112,6 +112,7 @@ func _ready() -> void:
 	add_child(model)
 	anim = model.find_children("*", "AnimationPlayer", true, false)[0]
 	skeleton = model.find_children("*", "Skeleton3D", true, false)[0]
+	bind_skins(model, skeleton)
 	for lib in EXTRA_CLIPS:
 		if anim.has_animation_library(lib):
 			continue
@@ -139,6 +140,22 @@ func _ready() -> void:
 
 
 ## Swap every material on a model for toon + outline, keeping its colours/textures.
+## Every skinned body mesh must follow the skeleton. An import cache left over from an older engine
+## can drop that link (Godot 4.5 -> 4.6 did): the character then renders in a T-pose while its
+## animation runs fine underneath. Re-link it and say so. Returns how many meshes were fixed.
+static func bind_skins(root: Node, sk: Skeleton3D) -> int:
+	var fixed := 0
+	for m in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.skin == null or mi.get_node_or_null(mi.skeleton) is Skeleton3D:
+			continue
+		mi.skeleton = mi.get_path_to(sk)
+		fixed += 1
+	if fixed > 0:
+		push_warning("Character3D: re-linked %d mesh(es) to the skeleton (stale import? delete .godot/imported)" % fixed)
+	return fixed
+
+
 static func apply_toon(root: Node, tint_c: Color = Color.WHITE, rim_s: float = 0.0, outline: float = 3.0) -> Array[ShaderMaterial]:
 	var out: Array[ShaderMaterial] = []
 	for m in root.find_children("*", "MeshInstance3D", true, false):

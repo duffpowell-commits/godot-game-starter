@@ -6,3 +6,7 @@ build_code.txt
 repo.txt
 export.log
 autoplay.log
+
+# made by tools/autoplay.sh; CI posts it to the dev release
+docs/renders/gameplay.mp4
+__pycache__/

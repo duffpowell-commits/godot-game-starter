@@ -19,25 +19,29 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  GODOT_VERSION: 4.5-stable
+  GODOT_VERSION: 4.6.3-stable
 
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write            # main only: the 10 s gameplay clip goes to the dev release
     steps:
       - uses: actions/checkout@v4
       - name: Install Godot
         run: |
           curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip
           unzip -q godot.zip && sudo mv Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
-          sudo apt-get install -y -qq xvfb >/dev/null
+          sudo apt-get install -y -qq xvfb ffmpeg >/dev/null
       - name: Import
         run: timeout 300 godot --headless --path . --import || true
       - name: Parse every script
         # With autoloads loaded (plain --check-only reports false errors for them). A parse
         # error makes a scene hang instead of failing, so this runs first.
         run: timeout 120 godot --headless --path . --script tools/check_scripts.gd 2>&1 | tee check.log; grep -q "^SCRIPTS OK" check.log
+      - name: Buffer sender only makes drafts
+        run: python3 tools/test_buffer_drafts.py
       - name: Rule tests
         run: XDG_DATA_HOME=$(mktemp -d) timeout 120 godot --headless --path . --script tests/run_tests.gd 2>&1 | tee tests.log; grep -q "^ALL PASS" tests.log
       - name: Autoplay (boot -> intro -> title -> play -> pause -> settings -> continue -> game over -> title)
@@ -45,11 +49,22 @@ jobs:
           mkdir -p renders
           tools/autoplay.sh $PWD/renders
           ! grep -qE "^FAIL|SCRIPT ERROR" autoplay.log
+          grep -q "^CLIP PASS" autoplay.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: renders
           path: renders
+      - name: Gameplay clip to the "dev" release (main only)
+        # renders/gameplay.mp4 = 10 s of real play recorded by the bot; watch it without installing.
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -f renders/gameplay.mp4
+          cp renders/gameplay.mp4 "${GITHUB_REPOSITORY#*/}_gameplay.mp4"
+          gh release view dev >/dev/null 2>&1 || gh release create dev --prerelease --title "Latest dev build" --notes "Rebuilt on every push to main."
+          gh release upload dev "${GITHUB_REPOSITORY#*/}_gameplay.mp4" --clobber
 
   android:
     needs: test
@@ -79,7 +94,8 @@ jobs:
         run: |
           bash signing/unlock.sh
           mkdir -p ~/.config/godot
-          cat > ~/.config/godot/editor_settings-4.5.tres <<TRES
+          MM=$(echo "$GODOT_VERSION" | cut -d- -f1 | cut -d. -f1,2)
+          cat > ~/.config/godot/editor_settings-$MM.tres <<TRES
           [gd_resource type="EditorSettings" format=3]
           [resource]
           export/android/android_sdk_path = "$ANDROID_HOME"
@@ -88,7 +104,7 @@ jobs:
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
           TRES
-          cp ~/.config/godot/editor_settings-4.5.tres ~/.config/godot/editor_settings-4.tres
+          cp ~/.config/godot/editor_settings-$MM.tres ~/.config/godot/editor_settings-4.tres
       - name: Stamp build number, repo and package name
         run: |
           REPO_NAME="${GITHUB_REPOSITORY#*/}"

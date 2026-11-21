@@ -3,6 +3,7 @@ extends Control
 
 const UI = preload("res://scripts/ui.gd")
 const Config = preload("res://scripts/config.gd")
+const Quality = preload("res://scripts/quality.gd")
 
 
 func _ready() -> void:
@@ -15,6 +16,12 @@ func _ready() -> void:
 	l.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	l.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(l)
-	await get_tree().create_timer(0.6).timeout
+	var splash := get_tree().create_timer(0.6)
+	if int(get_node("/root/Settings").get_value("tier")) < 0:
+		await Quality.pick(self)               # first launch: time the GPU, pick LOW / MEDIUM / HIGH
+	else:
+		Quality.restore(get_tree())
+	if splash.time_left > 0:
+		await splash.timeout
 	var seen: bool = get_node("/root/Settings").get_value("intro_seen")
-	get_tree().change_scene_to_file("res://scenes/title.tscn" if seen else "res://scenes/intro.tscn")
+	get_node("/root/Loader").go("res://scenes/title.tscn" if seen else "res://scenes/intro.tscn")

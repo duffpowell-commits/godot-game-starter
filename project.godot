@@ -8,11 +8,13 @@ config_version=5
 
 config/name="Starter Game"
 run/main_scene="res://scenes/boot.tscn"
-config/features=PackedStringArray("4.5", "GL Compatibility")
+config/features=PackedStringArray("4.6", "GL Compatibility")
 run/max_fps=60
 config/icon="res://icon.svg"
 
 [audio]
+
+general/ios/mix_with_others=true
 
 buses/default_bus_layout="res://default_bus_layout.tres"
 
@@ -25,6 +27,8 @@ Audio="*res://scripts/audio.gd"
 Subs="*res://scripts/subs.gd"
 Feel="*res://scripts/feel.gd"
 Telemetry="*res://scripts/telemetry.gd"
+Loader="*res://scripts/loader.gd"
+Battery="*res://scripts/battery.gd"
 Updater="*res://scripts/updater.gd"
 DebugMenu="*res://scripts/debug_menu.gd"
 Autoplay="*res://scripts/autoplay.gd"

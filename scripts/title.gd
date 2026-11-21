@@ -70,7 +70,7 @@ func _build() -> void:
 func _play(resume: bool) -> void:
 	if not resume:
 		get_node("/root/Save").clear()
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
+	get_node("/root/Loader").go("res://scenes/game.tscn")
 
 
 func _notification(what: int) -> void:

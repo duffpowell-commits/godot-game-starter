@@ -9,6 +9,8 @@ extends Node
 ## PASS line for each thing that must keep working.
 
 var shots := ""
+var clip := ""                          # --clip=DIR: save a gameplay clip's frames there
+const CLIP_SECS := 15.0                 # vertical 9:16 (the game is portrait), sized for Shorts/Reels/TikTok
 var failed := false
 var _start_ms := 0                      # when game code first runs (engine/driver start-up excluded)
 
@@ -22,6 +24,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shots="):
 			shots = a.trim_prefix("--shots=")
+		if a.begins_with("--clip="):
+			clip = a.trim_prefix("--clip=")
 	if shots != "":
 		DirAccess.make_dir_recursive_absolute(shots)
 	get_tree().create_timer(240.0).timeout.connect(func(): _fail("timeout"))
@@ -42,12 +46,24 @@ func _run() -> void:
 	# box, not a phone) and the bot's own frames and screenshot don't count.
 	var boot_ms := (intro_ms - _start_ms) + (Time.get_ticks_msec() - skip_ms)
 	_check(boot_ms < 10000, "BOOT PASS (title ready %.1f s after game start)" % (boot_ms / 1000.0))
+	# Quality tier: picked on first launch and saved; LOW really lowers; then HIGH for the checks below.
+	var Q = preload("res://scripts/quality.gd")
+	var st: Node = get_node("/root/Settings")
+	var picked: int = st.get_value("tier")
+	Q.apply(get_tree(), 0)
+	var low_ok: bool = st.get_value("low_graphics") and is_equal_approx(get_tree().root.scaling_3d_scale, 0.7)
+	Q.apply(get_tree(), 2)
+	var high_ok: bool = not st.get_value("low_graphics") and is_equal_approx(get_tree().root.scaling_3d_scale, 1.0)
+	_check(picked >= 0 and Q.last_ms > 0.0 and low_ok and high_ok,
+		"TIER PASS (first launch picked %s, test frame %.1f ms; LOW and HIGH apply)" % [Q.NAMES[maxi(picked, 0)], Q.last_ms])
 	await _frames(10)
 	_shot("title")
 	_check(_find("CONTINUE") == null, "TITLE PASS (no save yet)")
 	await _click("NEW GAME")
 	await _wait_scene("Game")
 	var game := get_tree().current_scene
+	var ld: Node = get_node("/root/Loader")
+	_check(ld.loads >= 2 and not ld.busy(), "LOAD PASS (%d scenes loaded in the background, %d frames drawn meanwhile)" % [ld.loads, ld.frames_while_loading])
 
 	# Play: tap the green orbs for a few seconds.
 	# Real time, not frame counts: a slow box runs few frames, so give it up to 15 s and stop at 3 points.
@@ -61,6 +77,8 @@ func _run() -> void:
 		await _frames(3)
 	_shot("game")
 	_check(game.score > start_score, "PLAY PASS (score %d)" % game.score)
+	var bat: Node = get_node("/root/Battery")
+	var playing_full: bool = bat.state == "play" and Engine.max_fps == 60
 
 	# Checkpoint: next level autosaves.
 	game.debug_skip_level()
@@ -72,6 +90,12 @@ func _run() -> void:
 	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
 	await _frames(10)
 	_check(game.paused and _find("RESUME") != null, "INTERRUPT PASS (paused on focus loss)")
+	var bg_low: bool = bat.state == "background" and Engine.max_fps == 5
+	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await _frames(3)
+	_check(playing_full and bg_low and bat.state == "saver" and Engine.max_fps == 30,
+		"BATTERY PASS (play 60 fps, background 5 fps, paused 30 fps)")
+	bat.idle_secs = INF                         # the bot plays without input events: don't treat it as idle
 	_shot("pause")
 
 	# Settings from the pause menu: bigger text, colorblind, left-handed.
@@ -147,6 +171,8 @@ func _run() -> void:
 	var coach_was: bool = get_tree().current_scene.has_node("UI/Root/Coach_move")
 	await _movement_checks(get_tree().current_scene)
 	await _standards_checks(get_tree().current_scene, coach_was)
+	if clip != "":
+		await _record_clip(get_tree().current_scene)
 
 	if not failed:
 		print("AUTOPLAY PASS")
@@ -219,6 +245,16 @@ func _movement_checks(ct: Node) -> void:
 	_check(hero.turned > 5.6 and top_speed > 4.0,
 		"MOVE360 PASS (turned %.1f rad, top speed %.1f m/s)" % [hero.turned, top_speed])
 	_check(foot_travel > 2.0, "LIMBS PASS (left foot travelled %.1f m against the hips: real animation)" % foot_travel)
+	# The drawn body follows the skeleton (a stale import can leave a T-pose mesh over a live rig).
+	var bound := 0
+	var skinned := 0
+	for c in [ct.hero, ct.dummy]:
+		for m in c.model.find_children("*", "MeshInstance3D", true, false):
+			if (m as MeshInstance3D).skin != null:
+				skinned += 1
+				if m.get_node_or_null(m.skeleton) == c.skeleton:
+					bound += 1
+	_check(skinned > 0 and bound == skinned, "SKIN PASS (%d of %d body meshes follow their skeleton)" % [bound, skinned])
 	# Feet planted on a slope and on stairs (foot IK): both ankles at ankle height over the ground.
 	for spot in [["SLOPE", Vector3(5, 1.5, -3), PI], ["STAIRS", Vector3(-3.5, 1.2, 3), -PI / 2]]:
 		_place(hero, spot[1], spot[2])
@@ -537,6 +573,64 @@ func _standards_checks(ct: Node, coach_was: bool) -> void:
 	# 9. Telemetry stays on the phone unless allowed.
 	var tel: Node = get_node("/root/Telemetry")
 	_check(not tel.allowed() and tel.events().size() > 0, "TELEMETRY PASS (%d events kept on the phone, nothing sent)" % tel.events().size())
+
+
+# ---------------------------------------------------------------- 15 s gameplay clip (vertical)
+
+## Plays a 15 s scripted fight (run, jump, punch combo, dodge, knockback) and saves every drawn
+## frame as JPG in `clip` + fps.txt (frames / real seconds). tools/autoplay.sh turns it into
+## gameplay.mp4; CI attaches it to the build. Watch it to see a build without installing it.
+func _record_clip(ct: Node) -> void:
+	DirAccess.make_dir_recursive_absolute(clip)
+	var hero: Node = ct.hero
+	var dummy: Node = ct.dummy
+	ct.reset_dummy()
+	ct.legend.visible = false                   # the clip shows the game, not the key list
+	ct.legend.set_process_input(false)
+	_place(hero, Vector3(1.5, 0.05, 1.0), PI)
+	ct.bot_stick = Vector2.ZERO
+	await _physics(10)
+	var frames := 0
+	var t0 := Time.get_ticks_msec()
+	var beats := [   # [seconds from start, what]
+		[0.0, "run_circle"], [1.4, "toward"], [1.5, "aim"], [3.0, "punch"], [3.5, "punch"], [4.0, "punch"],
+		[4.8, "jump"], [5.6, "dodge"], [6.2, "toward"], [7.2, "punch"], [7.7, "punch"], [8.2, "punch"],
+		[9.0, "strafe"], [11.0, "dodge"], [11.6, "toward"], [12.4, "punch"], [12.9, "punch"], [13.4, "punch"],
+		[14.2, "back"]]
+	var next := 0
+	var mode := "stop"
+	while true:
+		var t := (Time.get_ticks_msec() - t0) / 1000.0
+		if t >= CLIP_SECS:
+			break
+		while next < beats.size() and t >= beats[next][0]:
+			var what: String = beats[next][1]
+			next += 1
+			match what:
+				"punch": ct.punch()
+				"jump": hero.jump()
+				"dodge": hero.act("dodge")
+				"aim": hero.aim_at(dummy)
+				_: mode = what
+		var to_dummy: Vector3 = dummy.global_position - hero.global_position
+		match mode:
+			"run_circle": ct.bot_stick = Vector2(cos(t * 1.6), sin(t * 1.6)) * 0.9
+			"toward": ct.bot_stick = Vector2(to_dummy.x, to_dummy.z).normalized() * 0.8 if Vector2(to_dummy.x, to_dummy.z).length() > 1.1 else Vector2.ZERO
+			"back": ct.bot_stick = -Vector2(to_dummy.x, to_dummy.z).normalized() * 0.5
+			"strafe": ct.bot_stick = Vector2(-to_dummy.z, to_dummy.x).normalized() * 0.7
+			_: ct.bot_stick = Vector2.ZERO
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		img.resize(img.get_width() / 2 * 2, img.get_height() / 2 * 2)   # even size for video
+		img.save_jpg(clip.path_join("f%04d.jpg" % frames), 0.85)
+		frames += 1
+	var secs := (Time.get_ticks_msec() - t0) / 1000.0
+	ct.bot_stick = Vector2.INF
+	hero.aim_at(null)
+	var f := FileAccess.open(clip.path_join("fps.txt"), FileAccess.WRITE)
+	f.store_string("%.3f" % (frames / secs))
+	f.close()
+	_check(frames >= 60 and secs >= CLIP_SECS, "CLIP PASS (%d frames over %.1f s saved for the build video)" % [frames, secs])
 
 
 # ---------------------------------------------------------------- helpers

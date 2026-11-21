@@ -27,6 +27,10 @@ static func report_text(note: String, tree: SceneTree) -> String:
 	if tel != null and tel.crashed_last_run:
 		lines.append("crashed last run: yes")
 	lines.append("fps: %d" % Engine.get_frames_per_second())
+	var st: Node = tree.root.get_node_or_null("Settings")
+	if st != null:
+		var q = preload("res://scripts/quality.gd")
+		lines.append("graphics: %s (test frame %.1f ms)" % [q.NAMES[maxi(int(st.get_value("tier")), 0)], q.last_ms])
 	if state != "":
 		lines.append("state: " + state)
 	return "\n".join(lines)

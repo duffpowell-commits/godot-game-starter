@@ -13,11 +13,14 @@ const DEFAULTS := {
 	"music": 0.8,          # 0..1 linear, Music bus
 	"sfx": 0.9,            # 0..1 linear, SFX bus
 	"vibration": true,
+	"game_music": true,     # OFF = the game's music is muted, sound effects stay (play your own music)
+	"battery_saver": true,  # 30 fps when paused, on menus or idle (battery.gd)
 	"gamma": 1.0,          # 0.6 (darker) .. 1.6 (brighter); 1.0 = off, costs nothing
 	"text_size": 1,        # index into TEXT_SCALES
 	"invert_y": false,     # look controls
 	"sensitivity": 1.0,    # 0.3 .. 2.0, look/drag speed
-	"low_graphics": false, # games turn off particles, glow, shadows etc. when true
+	"low_graphics": false, # games turn off particles, glow, shadows etc. when true (set by tier)
+	"tier": -1,            # graphics tier 0 LOW / 1 MEDIUM / 2 HIGH; -1 = pick on first launch (quality.gd)
 	"left_handed": false,  # mirror the touch controls
 	"subtitles": true,
 	"high_contrast": false,
@@ -78,7 +81,7 @@ func reset_for_tests() -> void:
 
 
 func apply_all() -> void:
-	_set_bus("Music", float(get_value("music")))
+	_set_bus("Music", float(get_value("music")) if get_value("game_music") else 0.0)
 	_set_bus("SFX", float(get_value("sfx")))
 	var g := float(get_value("gamma"))
 	if _gamma_layer != null:

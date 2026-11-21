@@ -230,6 +230,85 @@ func _files(dir: String, ends: Array) -> Array:
 	return out
 
 
+## Phone textures: 3D textures import as ETC2/ASTC (the VRAM formats Android phones read directly).
+func test_mobile_texture_compression() -> void:
+	check(ProjectSettings.get_setting("rendering/textures/vram_compression/import_etc2_astc", false),
+		"ETC2/ASTC texture compression is on for phones")
+
+
+## Atlases: a sheet + json made by tools/pack_atlas.py hands back the right piece.
+func test_atlas_regions() -> void:
+	var Atlas = preload("res://scripts/atlas.gd")
+	var t: AtlasTexture = Atlas.tex("res://tests/fixtures/atlas_demo", "coin")
+	check(t != null and t.region == Rect2(26, 0, 16, 16), "coin region read from the json")
+	if t != null:
+		var c := t.atlas.get_image().get_pixel(26 + 8, 8)
+		check(c.r > 0.85 and c.g > 0.7 and c.b < 0.3, "coin pixel is gold (%s)" % c)
+	check(Atlas.names("res://tests/fixtures/atlas_demo").size() == 3, "three images in the sheet")
+	check(Atlas.tex("res://tests/fixtures/atlas_demo", "coin") == t, "atlas pieces are cached")
+
+
+## Quality tiers: LOW sets low graphics + a smaller 3D render, HIGH undoes it, the pick is saved.
+func test_quality_tiers() -> void:
+	var Q = preload("res://scripts/quality.gd")
+	var st: Node = root.get_node_or_null("Settings")
+	check(st != null, "Settings autoload present")
+	if st == null:
+		return
+	Q.apply(self, 0)
+	check(st.get_value("low_graphics") == true and st.get_value("tier") == 0 and is_equal_approx(root.scaling_3d_scale, 0.7), "LOW applies")
+	Q.apply(self, 2)
+	check(st.get_value("low_graphics") == false and st.get_value("tier") == 2 and is_equal_approx(root.scaling_3d_scale, 1.0), "HIGH applies")
+	check(Q.NAMES.size() == 3 and Q.SCALE.size() == 3, "three tiers")
+
+
+## The rulebook stays split: every standards/ file is listed in the GROK_STANDARDS.md index,
+## every link in the index exists, and no topic file grows past 60 lines (load only what you need).
+func test_standards_index() -> void:
+	var index := FileAccess.get_file_as_string("res://GROK_STANDARDS.md")
+	check(index.length() > 0, "GROK_STANDARDS.md index exists")
+	var d := DirAccess.open("res://standards")
+	check(d != null, "standards/ folder exists")
+	if d == null:
+		return
+	var count := 0
+	for f in d.get_files():
+		if not f.ends_with(".md"):
+			continue
+		count += 1
+		check(("standards/" + f) in index, f + " is listed in the index")
+		var lines := FileAccess.get_file_as_string("res://standards/" + f).split("\n").size()
+		check(lines <= 60, "%s is short (%d lines)" % [f, lines])
+	check(count >= 10, "topic files present")
+	for m in RegEx.create_from_string("\\((standards/[^)]+)\\)").search_all(index):
+		check(FileAccess.file_exists("res://" + m.get_string(1)), m.get_string(1) + " exists")
+
+
+## Your own music: GAME MUSIC off mutes only the Music bus; sound effects keep playing. On iPhone
+## the game mixes with other apps' audio. (Android: Godot never grabs audio focus, so Spotify etc.
+## keep playing; never add a plugin that does.)
+func test_play_your_own_music() -> void:
+	var s: Node = root.get_node("Settings")
+	var music := AudioServer.get_bus_index("Music")
+	var sfx := AudioServer.get_bus_index("SFX")
+	s.set_value("game_music", false)
+	check(AudioServer.is_bus_mute(music) and not AudioServer.is_bus_mute(sfx), "GAME MUSIC off mutes music only")
+	s.set_value("game_music", true)
+	check(not AudioServer.is_bus_mute(music), "GAME MUSIC on brings it back")
+	check(ProjectSettings.get_setting("audio/general/ios/mix_with_others", false), "iPhone mixes with other apps' music")
+
+
+## Battery saver: paused/menu/idle = 30 fps, background = 5 fps + low-processor, play = full speed.
+func test_battery_saver_states() -> void:
+	var b: Node = root.get_node("Battery")
+	b.set_state("saver")
+	check(Engine.max_fps == 30, "saver caps at 30 fps")
+	b.set_state("background")
+	check(Engine.max_fps == 5 and OS.low_processor_usage_mode, "background drops to 5 fps, low-processor mode")
+	b.set_state("play")
+	check(Engine.max_fps == 60 and not OS.low_processor_usage_mode, "play is full speed")
+
+
 ## 7. Coach hints are short (no text walls).
 func test_coach_hints_short() -> void:
 	var re := RegEx.create_from_string('Coach\\.teach\\([^,]+,\\s*"[^"]+",\\s*"([^"]+)"')
