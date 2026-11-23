@@ -35,6 +35,10 @@ func _ready() -> void:
 # ---------------------------------------------------------------- the run
 
 func _run() -> void:
+	await _wait_scene("Boot")
+	await _shot("studio_splash")
+	await _click("Skip splash")
+	_check(_find("Skip splash") == null, "STUDIO SPLASH PASS (Skip splash dismisses the publisher card)")
 	await _wait_scene("Intro")
 	var intro_ms := Time.get_ticks_msec()
 	await _frames(10)
@@ -59,6 +63,11 @@ func _run() -> void:
 	await _frames(10)
 	_shot("title")
 	_check(_find("CONTINUE") == null, "TITLE PASS (no save yet)")
+	await _click("SETTINGS")
+	await _click("CREDITS")
+	_check(_has_label("Published by 3 Eyed Fox Studios"), "PUBLISHER CREDITS PASS")
+	await _click("DONE")
+	await _click("DONE")
 	await _click("NEW GAME")
 	await _wait_scene("Game")
 	var game := get_tree().current_scene
@@ -740,3 +749,11 @@ func _tap_at(p: Vector2) -> void:
 		e.global_position = w
 		Input.parse_input_event(e)
 		await _frames(2)
+
+
+
+func _has_label(text: String) -> bool:
+	for label in get_tree().root.find_children("*", "Label", true, false):
+		if label.is_visible_in_tree() and label.text == text:
+			return true
+	return false
