@@ -21,6 +21,7 @@ Why (Nov 21): one rulebook every agent loads, instead of rules split across file
 | [standards/10-telemetry-offline.md](standards/10-telemetry-offline.md) | Stats, crash reports, network, accounts |
 | [standards/11-build-release.md](standards/11-build-release.md) | CI, signing key, APK, dev release, engine version |
 | [standards/12-testing.md](standards/12-testing.md) | The autoplay bot, rule tests, before-push checks |
+| [standards/13-finished-quality.md](standards/13-finished-quality.md) | Reference slice, phone-size review, new-player test, release-candidate playtest |
 
 If a repo's AGENTS.md (or README/CLAUDE.md) says something more specific, that wins for that repo.
 
