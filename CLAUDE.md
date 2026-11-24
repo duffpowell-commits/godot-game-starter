@@ -2,7 +2,7 @@
 
 # Starter Game (godot-game-starter)
 
-Template for every new Duff game: Godot 4.6.3, GDScript, portrait phone, Android APK. Milestone 0
+Template for every new Duff game: Godot 4.7.2, GDScript, portrait phone, Android APK. Milestone 0
 (foundation) is done here, so a new game starts at Milestone 1. Owner: Duff. This is the handoff.
 Commands, standing rules, guards and layout: AGENTS.md (imported above), shared by every coding AI.
 Why the import (Nov 21): Claude Code skips AGENTS.md when CLAUDE.md exists unless it's imported.
