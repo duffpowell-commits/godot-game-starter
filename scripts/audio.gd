@@ -1,6 +1,8 @@
 extends Node
-## Autoload "Audio". Audio.sfx("good") plays assets/audio/good.wav on the SFX bus;
+## Autoload "Audio". Audio.sfx("good") plays assets/audio/good.* on the SFX bus;
 ## Audio.music("music_loop") loops a track on the Music bus. Volumes live in Settings.
+## Real clips: a .ogg or .mp3 beats the placeholder .wav of the same name, so dropping a real sound
+## in needs no code change (docs/AUDIO.md; tools/audio_intake.py converts what Duff uploads).
 ## Buses are in default_bus_layout.tres (web ignores buses added at runtime: add new ones there).
 ## Audio standard (GROK_STANDARDS.md #6):
 ##   Audio.music_layers("music_loop", "music_combat")  # two synced loops of the same length
@@ -9,6 +11,7 @@ extends Node
 ##   Audio.step(surface)                               # footsteps per surface (Character3D calls it)
 
 const DIR := "res://assets/audio/"
+const EXTS: Array[String] = [".ogg", ".mp3", ".wav"]   # first one found wins: real clip before placeholder
 const VOICES := 8
 const DUCK_DB := -10.0
 const FADE := 1.5                      # seconds for a full explore <-> combat crossfade
@@ -41,10 +44,28 @@ func _ready() -> void:
 	add_child(_combat)
 
 
+## Path of the clip called `name` in `dir`, or "" when there is none.
+func find_clip(name: String, dir: String = DIR) -> String:
+	for ext in EXTS:
+		if ResourceLoader.exists(dir + name + ext):
+			return dir + name + ext
+	return ""
+
+
+## Loads a clip. music_* clips loop: .ogg/.mp3 here, a .wav through its .import (edit/loop_mode=2).
+func load_clip(name: String, dir: String = DIR) -> AudioStream:
+	var path := find_clip(name, dir)
+	if path == "":
+		return null
+	var s: AudioStream = load(path)
+	if s is AudioStreamOggVorbis or s is AudioStreamMP3:
+		s.loop = name.begins_with("music_")
+	return s
+
+
 func _stream(name: String) -> AudioStream:
 	if not _cache.has(name):
-		var path := DIR + name + ".wav"
-		_cache[name] = load(path) if ResourceLoader.exists(path) else null
+		_cache[name] = load_clip(name)
 	return _cache[name]
 
 
@@ -75,7 +96,7 @@ func music(name: String) -> void:
 	var s := _stream(name)
 	if s == null or (_music.stream == s and _music.playing):
 		return
-	# Looping is set in the track's .import (edit/loop_mode=2) or an .ogg's loop flag.
+	# Looping: see load_clip().
 	_music.stream = s
 	_music.play()
 	_combat.stop()

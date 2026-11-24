@@ -9,6 +9,7 @@ Work only on NOW. New asks go under IDEAS with a date until Duff swaps them into
 
 ## DONE
 - Milestone 0: foundation, items 1-14 (Nov 19, 2026). See CLAUDE.md.
+- Audio intake (Duff said yes in chat, Nov 24, 2026): real sound from the phone, docs/AUDIO.md.
 
 ## IDEAS
 

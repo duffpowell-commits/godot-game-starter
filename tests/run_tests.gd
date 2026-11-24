@@ -339,3 +339,17 @@ func test_tune_saves_applies_and_reports() -> void:
 	Tune.clear()
 	feel.shake_scale = 1.0
 	check(Tune.saved("feel", "shake_scale") == null, "reset clears saved values")
+
+
+## Real audio: a converted clip (.ogg/.mp3 from tools/audio_intake.py) beats the placeholder .wav of
+## the same name, a missing name is silent, and music_* clips loop without touching their .import.
+func test_audio_prefers_real_clips() -> void:
+	var a: Node = root.get_node("Audio")
+	var dir := "res://tests/fixtures/audio/"
+	check(a.find_clip("pick", dir) == dir + "pick.ogg", "ogg beats the placeholder wav")
+	check(a.find_clip("only", dir) == dir + "only.wav", "wav still plays when it's all there is")
+	check(a.find_clip("nope", dir) == "", "a missing sound resolves to nothing")
+	var m: AudioStream = a.load_clip("music_pick", dir)
+	check(m is AudioStreamOggVorbis and m.loop, "music_* ogg loops")
+	var s: AudioStream = a.load_clip("pick", dir)
+	check(s is AudioStreamOggVorbis and not s.loop, "sound effects don't loop")

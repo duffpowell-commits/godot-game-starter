@@ -19,6 +19,9 @@ Catch-up log: docs/DECISIONS.md.
 - Nov 21: live tuning sliders (DEV MENU -> TUNE), push-guard hooks, fresh-eyes review gate.
 - Nov 21 (Grok): Git pre-push hook for every agent (`.githooks/pre-push`, same rules as guard.py);
   rules moved into AGENTS.md, which this file imports.
+- Nov 24: audio intake. Real sound goes in from Duff's phone through `assets/audio/inbox/`
+  (docs/AUDIO.md); CI converts, levels, logs it and rebuilds. `Audio` plays .ogg/.mp3 before the
+  placeholder .wav. Not yet proven on a real upload from his phone (first one is the test).
 - Next: start a game from this template (docs/NEW_GAME.md); Milestone 1 = the game's core loop.
 
 ## Claude-only notes

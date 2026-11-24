@@ -55,3 +55,18 @@ Approved by Duff on Nov 21 ("Build the pre-push hook", "Build the shared ruleboo
 - Hunter's Godot version: its BUILD_SPEC says 4.5-stable, while this template and standards/ use 4.6.3.
 - Is Hunter the active game? Hunter's docs/PITCH.md says Lethemoor is; its QUEUE.md says Hunter
   coding was greenlit Nov 20. Both logged in hunter's QUEUE.md; nothing changed until Duff says.
+
+## 2026-11-24: audio intake (Claude)
+**What:** `assets/audio/inbox/<source>/` + `tools/audio_intake.py` + `audio_intake.yml`. `Audio` now
+looks for `.ogg`, `.mp3`, then `.wav`, and loops `music_*` ogg/mp3 itself. `SOURCES.md` is one row per sound.
+**Why:** Duff asked what his game pipeline was missing. The sound plumbing was done, but there was no
+phone-only way to get a real ElevenLabs/Suno file in: `Audio` only loaded `.wav`, nothing levelled
+clips, and the licence log was by hand.
+**Found on the way:** `build.yml`'s rule-test step passed when a test crashed (a crash stops the
+test without failing a check, and `ALL PASS` still printed). It now also fails on `SCRIPT ERROR`,
+like `tools/test.sh` already did. Levelling and ogg encoding in one ffmpeg call clipped short
+clips to 0 dB; the intake test caught it, so they are two steps.
+**Open:** the first real upload from Duff's phone is the live test (GitHub's phone upload page and
+the robot's push + build start can't be proven from a session). Copy this into the game repos
+after it works once. The robot does not commit Godot `.import` files for new clips; the build
+makes them, and the next session commits them.

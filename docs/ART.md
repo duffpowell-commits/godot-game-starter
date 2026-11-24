@@ -7,5 +7,6 @@
 - **Send to game:** Foxboard's Send to game button commits art into `grok_art/<date>-foxboard/` as
   base64. `.github/workflows/foxboard_decode.yml` turns it back into PNG/GIF. `build.yml` ignores
   `grok_art/`, so a drop never ships by itself: a session cuts/cleans it into `assets/art/`.
-- Sounds: placeholders from `tools/gen_audio.py`; list every real clip in `assets/audio/SOURCES.md`.
+- Sounds: placeholders from `tools/gen_audio.py`. Real ones go in through the audio inbox
+  (docs/AUDIO.md): upload to `assets/audio/inbox/`, CI converts, levels and logs them in `SOURCES.md`.
 - Duff's likeness and hand tattoos: follow the project's art rules (never invent his tattoos).

@@ -9,7 +9,8 @@ name: build
 on:
   push:
     branches: [main]
-    paths-ignore: ["docs/**", "**/*.md", "grok_art/**"]
+    # assets/audio/inbox: raw uploads; audio_intake.yml converts them and then starts this build.
+    paths-ignore: ["docs/**", "**/*.md", "grok_art/**", "assets/audio/inbox/**"]
   pull_request:
     paths-ignore: ["docs/**", "**/*.md", "grok_art/**"]
   workflow_dispatch:
@@ -42,8 +43,11 @@ jobs:
         run: timeout 120 godot --headless --path . --script tools/check_scripts.gd 2>&1 | tee check.log; grep -q "^SCRIPTS OK" check.log
       - name: Buffer sender only makes drafts
         run: python3 tools/test_buffer_drafts.py
+      - name: Audio intake converts, levels and logs uploads; every clip has a SOURCES.md row
+        run: python3 tools/test_audio_intake.py
       - name: Rule tests
-        run: XDG_DATA_HOME=$(mktemp -d) timeout 120 godot --headless --path . --script tests/run_tests.gd 2>&1 | tee tests.log; grep -q "^ALL PASS" tests.log
+        # A test that crashes stops without failing a check, so a SCRIPT ERROR is a failure too.
+        run: XDG_DATA_HOME=$(mktemp -d) timeout 120 godot --headless --path . --script tests/run_tests.gd 2>&1 | tee tests.log; grep -q "^ALL PASS" tests.log && ! grep -q "SCRIPT ERROR" tests.log
       - name: Autoplay (boot -> intro -> title -> play -> pause -> settings -> continue -> game over -> title)
         run: |
           mkdir -p renders
