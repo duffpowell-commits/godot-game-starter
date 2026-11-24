@@ -5,6 +5,9 @@ Work only on NOW. New asks go under IDEAS with a date until Duff swaps them into
 - (template) Nothing: this repo is the starter. Make a game from it (docs/NEW_GAME.md).
 
 ## NEXT
+- Audio intake (Duff said yes in chat, Nov 24, 2026): built (PR #19), docs/AUDIO.md. Not done until
+  Duff's first real upload from his phone converts and lands in a dev APK. Then move to DONE and
+  copy it into the game repos.
 - In a new game: Milestone 1 = the core loop from docs/PITCH.md, replacing the PLAY section of scripts/game.gd.
 
 ## DONE

@@ -1,0 +1,71 @@
+name: audio-intake
+
+# Real sound from Duff's phone (docs/AUDIO.md). He uploads a file into assets/audio/inbox/<source>/
+# named after the sound it should be (click.mp3 -> the game's "click"). This job converts it to
+# assets/audio/<name>.ogg, levels it, removes the placeholder and logs it in SOURCES.md
+# (tools/audio_intake.py). Its own push uses GITHUB_TOKEN, which never triggers other workflows,
+# so it starts build.yml itself: the new sound is in the next dev APK with no session needed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "assets/audio/inbox/**"
+      - "!assets/audio/inbox/**/.gitkeep"
+      - "!assets/audio/inbox/.gdignore"
+      - "!assets/audio/inbox/README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write               # to start build.yml after the commit
+
+concurrency:
+  group: audio-intake
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # The tip of main, not the commit that started this run: two uploads in a row queue two runs,
+      # and the second must see what the first already converted (or it converts it again and conflicts).
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+      - name: Convert uploads
+        run: |
+          set -euo pipefail
+          python3 tools/audio_intake.py | tee intake.log
+          {
+            echo "### Audio intake"
+            echo '```'
+            cat intake.log
+            echo
+            python3 tools/audio_intake.py --report || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep '^SKIPPED' intake.log | sed 's/^/::warning::/' || true
+      - name: Commit and start the build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -f intake.log
+          git add -A assets/audio
+          if git diff --cached --quiet; then echo "nothing converted"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "Audio intake: $(git diff --cached --name-only --diff-filter=AM | grep -c '\.ogg$' || true) clip(s) converted"
+          for i in 1 2 3; do
+            if git pull -q --rebase origin main && git push -q origin HEAD:main; then
+              gh workflow run build.yml --ref main || echo "::error::audio is on main but the build did not start: run the build workflow by hand (Actions -> build -> Run workflow)"
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((i * 5))
+          done
+          echo "::error::could not push the converted audio"; exit 1

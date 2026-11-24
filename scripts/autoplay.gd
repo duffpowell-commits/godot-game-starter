@@ -114,6 +114,10 @@ func _run() -> void:
 		await _frames(3)
 	_shot("game")
 	_check(game.score > start_score, "PLAY PASS (score %d)" % game.score)
+	# Sound: play made noise, and nothing the game asked for was missing (placeholder .wav or real .ogg/.mp3).
+	var aud: Node = get_node("/root/Audio")
+	_check(aud.played.size() > 0 and aud.missing.is_empty(),
+		"AUDIO PASS (%d sounds played, none missing%s)" % [aud.played.size(), "" if aud.missing.is_empty() else ": " + ", ".join(aud.missing)])
 	var bat: Node = get_node("/root/Battery")
 	var playing_full: bool = bat.state == "play" and Engine.max_fps == 60
 

@@ -12,6 +12,12 @@ floor >= 2:1 in normal light and in the dark. Check: `READ PASS`.
 Godot today: `Audio.step()`, `Audio.music_layers()`, `Audio.set_intensity()`, `Audio.duck()`.
 Checks: `STEPS`, `MUSIC`, `DUCK PASS`.
 
+## Real sound replaces placeholders without code changes
+- A real clip has the placeholder's name; the game plays it instead. Every clip is levelled the same
+  way (effects to one peak, music to one loudness) and logged with its source and licence.
+Godot today: upload to `assets/audio/inbox/` (docs/AUDIO.md); `Audio` prefers `.ogg` over `.wav`.
+Checks: `AUDIO PASS`, `AUDIO INTAKE PASS`.
+
 ## The player's own music keeps playing
 - Never grab exclusive audio focus: on Android the game plays alongside Spotify etc. (Godot never
   requests focus; don't add a plugin that does). On iPhone the game mixes with other apps
