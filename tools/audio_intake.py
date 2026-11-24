@@ -96,8 +96,13 @@ def convert(src, dst, music):
     if music and loud is not None:
         gain = min(MUSIC_LUFS - loud, gain)                 # music: a steady level, never past the peak
     lev = dst + ".level.wav"                               # level first, encode second: doing both in one
-    run(["ffmpeg", "-loglevel", "error", "-y", "-i", tmp, "-af", "volume=%.2fdB" % gain,   # ffmpeg call clipped
-         "-ac", "2" if music else "1", "-ar", "44100", "-c:a", "pcm_s16le", lev])
+    p = run(["ffmpeg", "-loglevel", "error", "-y", "-i", tmp, "-af", "volume=%.2fdB" % gain,   # ffmpeg call clipped
+             "-ac", "2" if music else "1", "-ar", "44100", "-c:a", "pcm_s16le", lev])
+    if p.returncode != 0:
+        for f in (tmp, lev):
+            if os.path.exists(f):
+                os.remove(f)
+        return "ffmpeg could not level it"
     p = run(["ffmpeg", "-loglevel", "error", "-y", "-i", lev, "-c:a", "libvorbis", "-q:a", "5", "-f", "ogg", dst])
     for f in (tmp, lev):
         if os.path.exists(f):
@@ -112,7 +117,7 @@ def intake(root=".", today=None):
     today = today or datetime.date.today().isoformat()
     audio, inbox, sources = (os.path.join(root, p) for p in (AUDIO, INBOX, SOURCES))
     rows = read_rows(sources)
-    done, skipped = [], []
+    done, skipped, seen = [], [], {}
     for folder, _, files in sorted(os.walk(inbox)):
         for fn in sorted(files):
             src = os.path.join(folder, fn)
@@ -124,6 +129,9 @@ def intake(root=".", today=None):
             name = sound_name(fn)
             if not name:
                 skipped.append("%s: the file name has no letters or numbers" % rel)
+                continue
+            if name in seen:                 # two uploads for one sound: keep the first, lose nothing
+                skipped.append("%s: same sound name as %s, which was used" % (rel, seen[name]))
                 continue
             if os.path.getsize(src) > MAX_BYTES:
                 skipped.append("%s: over 25 MB" % rel)
@@ -142,6 +150,7 @@ def intake(root=".", today=None):
                         os.remove(old)
             os.replace(dst + ".new.ogg", dst)
             os.remove(src)
+            seen[name] = rel
             where = os.path.relpath(folder, inbox).split(os.sep)[0].lower()
             where = "unknown" if where == "." else where
             rows[name] = [name, name + ".ogg", "%s (uploaded as %s)" % (where, fn.replace("|", "_")),

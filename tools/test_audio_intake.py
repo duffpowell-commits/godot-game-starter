@@ -39,13 +39,16 @@ ff("-f", "lavfi", "-i", "sine=frequency=220:duration=4", "-af", "volume=0.05", "
    os.path.join(audio, "inbox", "suno", "music_loop.mp3"))
 ff("-f", "lavfi", "-i", "sine=frequency=500:duration=0.2", os.path.join(audio, "inbox", "other", "Door Creak (2).wav"))
 ff("-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", "1", os.path.join(audio, "inbox", "other", "silent.wav"))
+ff("-f", "lavfi", "-i", "sine=frequency=300:duration=0.2", os.path.join(audio, "inbox", "other", "CLICK.wav"))
 open(os.path.join(audio, "inbox", "other", "notes.txt"), "w").write("not a sound")
 
 done, skipped = ai.intake(root, today="2026-01-02")
 print("\n".join(done + skipped))
 rows = ai.read_rows(os.path.join(root, ai.SOURCES))
 
-check(len(done) == 3 and len(skipped) == 2, "3 converted, 2 skipped (got %d, %d)" % (len(done), len(skipped)))
+check(len(done) == 3 and len(skipped) == 3, "3 converted, 3 skipped (got %d, %d)" % (len(done), len(skipped)))
+check(os.path.exists(os.path.join(audio, "inbox", "other", "CLICK.wav")) and rows.get("click", [""] * 5)[2].startswith("elevenlabs"),
+      "a second upload with the same sound name is skipped, not swapped in silently")
 click = os.path.join(audio, "click.ogg")
 check(os.path.exists(click), "click.ogg written")
 check(not os.path.exists(os.path.join(audio, "click.wav")) and not os.path.exists(os.path.join(audio, "click.wav.import")),

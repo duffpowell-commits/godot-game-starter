@@ -17,6 +17,7 @@ const DUCK_DB := -10.0
 const FADE := 1.5                      # seconds for a full explore <-> combat crossfade
 
 var played: Array[String] = []         # last sounds played (tests and bug reports read this)
+var missing: Array[String] = []        # names asked for that have no clip (autoplay's AUDIO PASS reads this)
 var intensity := 0.0                   # where the music is now (0 explore .. 1 combat)
 var target_intensity := 0.0
 var duck_db := 0.0                     # current duck offset on the music
@@ -69,8 +70,16 @@ func _stream(name: String) -> AudioStream:
 	return _cache[name]
 
 
-func sfx(name: String, pitch: float = 1.0, volume_db: float = 0.0) -> void:
+## Like _stream, but a name with no clip is remembered (step() probes surfaces on purpose, so it uses _stream).
+func _want(name: String) -> AudioStream:
 	var s := _stream(name)
+	if s == null and not missing.has(name):
+		missing.append(name)
+	return s
+
+
+func sfx(name: String, pitch: float = 1.0, volume_db: float = 0.0) -> void:
+	var s := _want(name)
 	if s == null:
 		return
 	var p := _players[_next]
@@ -89,11 +98,11 @@ func sfx(name: String, pitch: float = 1.0, volume_db: float = 0.0) -> void:
 ## Footstep for a surface ("stone", "wood", "grass", "water"...); falls back to stone.
 func step(surface: String) -> void:
 	var n := "step_" + surface
-	sfx(n if _stream(n) != null else "step_stone", randf_range(0.9, 1.1), -6.0)
+	sfx(n if _stream(n) != null else "step_stone", randf_range(0.9, 1.1), -6.0)   # unknown surface: stone, not "missing"
 
 
 func music(name: String) -> void:
-	var s := _stream(name)
+	var s := _want(name)
 	if s == null or (_music.stream == s and _music.playing):
 		return
 	# Looping: see load_clip().
@@ -104,8 +113,8 @@ func music(name: String) -> void:
 
 ## Explore + combat layers of the same length, started together so they stay in sync.
 func music_layers(explore: String, combat: String) -> void:
-	var a := _stream(explore)
-	var b := _stream(combat)
+	var a := _want(explore)
+	var b := _want(combat)
 	if a == null or b == null:
 		return
 	if _music.stream == a and _combat.stream == b and _music.playing:

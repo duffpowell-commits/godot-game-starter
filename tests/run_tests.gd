@@ -353,3 +353,8 @@ func test_audio_prefers_real_clips() -> void:
 	check(m is AudioStreamOggVorbis and m.loop, "music_* ogg loops")
 	var s: AudioStream = a.load_clip("pick", dir)
 	check(s is AudioStreamOggVorbis and not s.loop, "sound effects don't loop")
+	a.sfx("no_such_sound")
+	check(a.missing.has("no_such_sound"), "a sound with no clip is remembered as missing (autoplay AUDIO PASS)")
+	a.step("lava")
+	check(not a.missing.has("step_lava"), "an unknown footstep surface falls back to stone, not missing")
+	a.missing.clear()

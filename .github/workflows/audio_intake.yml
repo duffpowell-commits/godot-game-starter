@@ -25,10 +25,15 @@ concurrency:
 
 jobs:
   intake:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # The tip of main, not the commit that started this run: two uploads in a row queue two runs,
+      # and the second must see what the first already converted (or it converts it again and conflicts).
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - name: Install ffmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
       - name: Convert uploads
@@ -54,12 +59,13 @@ jobs:
           if git diff --cached --quiet; then echo "nothing converted"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -q -m "Audio intake: $(git diff --cached --name-only --diff-filter=A | grep -c '\.ogg$' || true) new clip(s)"
+          git commit -q -m "Audio intake: $(git diff --cached --name-only --diff-filter=AM | grep -c '\.ogg$' || true) clip(s) converted"
           for i in 1 2 3; do
             if git pull -q --rebase origin main && git push -q origin HEAD:main; then
               gh workflow run build.yml --ref main
               exit 0
             fi
+            git rebase --abort 2>/dev/null || true
             sleep $((i * 5))
           done
           echo "::error::could not push the converted audio"; exit 1
