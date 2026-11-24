@@ -230,12 +230,15 @@ def check_label(tool, inp):
     """Rule 6: agents never add Duff's duff-ok label (rule-lock approval)."""
     if tool == "Bash":
         cmd = inp.get("command", "")
-        if "duff-ok" in cmd and re.search(r"\bgh\b|\bcurl\b", cmd) and re.search(r"label", cmd, re.I):
+        # Writes only (reading label history stays allowed); GitHub matches label names any case.
+        if "duff-ok" in cmd.lower() and re.search(
+                r"--add-label|--label\b|labels?\s*=|labels\[\]|-X\s*(POST|PUT|PATCH)|--method\s*(POST|PUT|PATCH)",
+                cmd, re.I):
             deny("the duff-ok label is Duff's approval of a rule change; only he adds it (rule-lock).")
     elif tool.startswith("mcp__"):
         labels = inp.get("labels")
         if isinstance(labels, str):
-            labels = [labels]
+            labels = labels.split(",")
         if isinstance(labels, list) and any(str(l).strip().lower() == "duff-ok" for l in labels):
             deny("the duff-ok label is Duff's approval of a rule change; only he adds it (rule-lock).")
 

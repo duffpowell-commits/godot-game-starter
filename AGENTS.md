@@ -64,8 +64,8 @@ Before any merge: a fresh-eyes review (docs/FRESH_EYES.md); CI keeps the PR pend
   check the combined status and don't merge (GitHub itself doesn't block it).
 - Signing: one keystone for every game except Lethemoor (docs/SIGNING.md). Never make another key.
 - Rule lock (Nov 24, 2026): a PR that changes the rules (AGENTS.md, GROK_STANDARDS.md, `standards/`,
-  `.claude/`, `.githooks/`, the gate workflows, or a rules/guards section of CLAUDE.md; list in
-  `tools/rule_lock.py`) gets a failing `rule-lock` status until Duff adds the `duff-ok` label.
+  `.claude/`, `.githooks/`, `fresh_eyes.yml`, `rule_lock.yml`, the lock's own tools, or CLAUDE.md's top
+  (@imports) or a rules/guards/signing section; list in `tools/rule_lock.py`) gets a failing `rule-lock` status until Duff adds the `duff-ok` label.
   **Agents never add, ask a tool to add, or work around that label**; guard.py blocks Claude from it.
   Put rule changes in their own PR, say in the body what changes and why, and tell Duff it needs his tap.
   Why: on Nov 21 an agent rewrote a rule inside an art PR and wrote "Duff okayed it" itself.

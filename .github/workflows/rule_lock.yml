@@ -1,10 +1,12 @@
 # Rule lock (Duff, Nov 24, 2026): a PR that changes the rules (tools/rule_lock.py lists what counts)
 # gets a failing `rule-lock` status until Duff adds the `duff-ok` label (one tap in the GitHub app:
 # the PR -> Labels -> duff-ok). Agents never add that label. Failing = not green = no self-merge.
+# A new push to a PR that already has duff-ok and still changes rules drops the label, so Duff sees
+# every version he approves. The check runs main's copy of tools/rule_lock.py, so a PR can't judge
+# itself with an edited one. A missing rule-lock status counts as a block (docs/FRESH_EYES.md).
 # Limit: every agent works through Duff's GitHub account, so GitHub can't tell who added the label.
 # This stops an agent from changing a rule by accident or in passing; it can't stop one that
-# breaks the "never add duff-ok" rule on purpose. CI and the fresh-eyes reviewer check the label's
-# history too.
+# breaks the "never add duff-ok" rule on purpose.
 name: rule-lock
 on:
   pull_request:
@@ -28,16 +30,36 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           SHA: ${{ github.event.pull_request.head.sha }}
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          PR: ${{ github.event.pull_request.number }}
+          ACTION: ${{ github.event.action }}
         run: |
           gh label create duff-ok --repo "$REPO" --color c2602f \
             --description "Duff approved this rule change (Duff adds it, never an agent)" 2>/dev/null || true
-          if hits=$(python3 tools/rule_lock.py "$BASE" "$SHA"); then
-            state=success; desc="No rule changes"
-          elif echo ",$LABELS," | grep -q ",duff-ok,"; then
-            state=success; desc="Rule change approved by Duff (duff-ok)"
+          # main's copy of the judge when it has one (a PR can't loosen its own check)
+          if git cat-file -e "$BASE:tools/rule_lock.py" 2>/dev/null; then
+            git show "$BASE:tools/rule_lock.py" > /tmp/rule_lock.py
           else
-            state=failure; desc="Changes rules: needs Duff's duff-ok label"
+            cp tools/rule_lock.py /tmp/rule_lock.py
           fi
+          set +e
+          hits=$(python3 /tmp/rule_lock.py "$BASE" "$SHA"); rc=$?
+          set -e
           echo "$hits"
+          has_ok=no
+          echo ",$LABELS," | grep -qi ",duff-ok," && has_ok=yes
+          if [ "$rc" = 1 ] && [ "$has_ok" = yes ] && [ "$ACTION" = synchronize ]; then
+            gh api -X DELETE "repos/$REPO/issues/$PR/labels/duff-ok" >/dev/null || true
+            has_ok=no
+            echo "New push still changes rules: duff-ok removed, Duff re-approves this version."
+          fi
+          if [ "$rc" = 0 ]; then
+            state=success; desc="No rule changes"
+          elif [ "$rc" = 1 ] && [ "$has_ok" = yes ]; then
+            state=success; desc="Rule change approved by Duff (duff-ok)"
+          elif [ "$rc" = 1 ]; then
+            state=failure; desc="Changes rules: needs Duff's duff-ok label"
+          else
+            state=failure; desc="Rule check errored (exit $rc): counts as a rule change"
+          fi
           gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context=rule-lock -f description="$desc" >/dev/null
           echo "rule-lock: $state"
