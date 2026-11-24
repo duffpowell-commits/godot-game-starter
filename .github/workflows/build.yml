@@ -45,6 +45,8 @@ jobs:
         run: python3 tools/test_buffer_drafts.py
       - name: Audio intake converts, levels and logs uploads; every clip has a SOURCES.md row
         run: python3 tools/test_audio_intake.py
+      - name: Rule lock + duff-ok guard
+        run: sh tools/test_rule_lock.sh
       - name: Rule tests
         # A test that crashes stops without failing a check, so a SCRIPT ERROR is a failure too.
         run: XDG_DATA_HOME=$(mktemp -d) timeout 120 godot --headless --path . --script tests/run_tests.gd 2>&1 | tee tests.log; grep -q "^ALL PASS" tests.log && ! grep -q "SCRIPT ERROR" tests.log

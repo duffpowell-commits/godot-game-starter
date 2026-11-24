@@ -1,0 +1,43 @@
+# Rule lock (Duff, Nov 24, 2026): a PR that changes the rules (tools/rule_lock.py lists what counts)
+# gets a failing `rule-lock` status until Duff adds the `duff-ok` label (one tap in the GitHub app:
+# the PR -> Labels -> duff-ok). Agents never add that label. Failing = not green = no self-merge.
+# Limit: every agent works through Duff's GitHub account, so GitHub can't tell who added the label.
+# This stops an agent from changing a rule by accident or in passing; it can't stop one that
+# breaks the "never add duff-ok" rule on purpose. CI and the fresh-eyes reviewer check the label's
+# history too.
+name: rule-lock
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+permissions:
+  statuses: write
+  issues: write
+  pull-requests: read
+  contents: read
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Rule changes need Duff's duff-ok label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          gh label create duff-ok --repo "$REPO" --color c2602f \
+            --description "Duff approved this rule change (Duff adds it, never an agent)" 2>/dev/null || true
+          if hits=$(python3 tools/rule_lock.py "$BASE" "$SHA"); then
+            state=success; desc="No rule changes"
+          elif echo ",$LABELS," | grep -q ",duff-ok,"; then
+            state=success; desc="Rule change approved by Duff (duff-ok)"
+          else
+            state=failure; desc="Changes rules: needs Duff's duff-ok label"
+          fi
+          echo "$hits"
+          gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context=rule-lock -f description="$desc" >/dev/null
+          echo "rule-lock: $state"
