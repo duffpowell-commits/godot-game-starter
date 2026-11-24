@@ -26,10 +26,13 @@ audio = os.path.join(root, ai.AUDIO)
 os.makedirs(os.path.join(audio, "inbox", "elevenlabs"))
 os.makedirs(os.path.join(audio, "inbox", "suno"))
 os.makedirs(os.path.join(audio, "inbox", "other"))
-for fn in os.listdir(os.path.join(repo, ai.AUDIO)):
-    if os.path.isfile(os.path.join(repo, ai.AUDIO, fn)):
-        shutil.copy(os.path.join(repo, ai.AUDIO, fn), audio)
-check(os.path.exists(os.path.join(audio, "click.wav.import")), "fixture has the placeholder click and its .import")
+# The fixture is made here, never copied from the repo: once a real click.ogg is on main the repo
+# has no placeholder click, and this test must keep passing in the build that upload starts.
+for n in ("click", "good", "music_loop"):
+    ff("-f", "lavfi", "-i", "sine=frequency=400:duration=0.1", os.path.join(audio, n + ".wav"))
+    open(os.path.join(audio, n + ".wav.import"), "w").write("[remap]\n")
+ai.write_rows({n: [n, n + ".wav", ai.PLACEHOLDER, "original", "2026-01-01"] for n in ("click", "good", "music_loop")},
+              os.path.join(root, ai.SOURCES))
 
 # A quiet beep with half a second of silence on each side, the way generators hand them over.
 ff("-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-f", "lavfi", "-i", "sine=frequency=880:duration=0.3",
@@ -39,16 +42,24 @@ ff("-f", "lavfi", "-i", "sine=frequency=220:duration=4", "-af", "volume=0.05", "
    os.path.join(audio, "inbox", "suno", "music_loop.mp3"))
 ff("-f", "lavfi", "-i", "sine=frequency=500:duration=0.2", os.path.join(audio, "inbox", "other", "Door Creak (2).wav"))
 ff("-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", "1", os.path.join(audio, "inbox", "other", "silent.wav"))
-ff("-f", "lavfi", "-i", "sine=frequency=300:duration=0.2", os.path.join(audio, "inbox", "other", "CLICK.wav"))
+ff("-f", "lavfi", "-i", "sine=frequency=300:duration=0.2", os.path.join(audio, "inbox", "other", "Dupe.wav"))
+ff("-f", "lavfi", "-i", "sine=frequency=310:duration=0.2", os.path.join(audio, "inbox", "suno", "dupe.mp3"))
 open(os.path.join(audio, "inbox", "other", "notes.txt"), "w").write("not a sound")
 
 done, skipped = ai.intake(root, today="2026-01-02")
 print("\n".join(done + skipped))
 rows = ai.read_rows(os.path.join(root, ai.SOURCES))
 
-check(len(done) == 3 and len(skipped) == 3, "3 converted, 3 skipped (got %d, %d)" % (len(done), len(skipped)))
-check(os.path.exists(os.path.join(audio, "inbox", "other", "CLICK.wav")) and rows.get("click", [""] * 5)[2].startswith("elevenlabs"),
-      "a second upload with the same sound name is skipped, not swapped in silently")
+check(len(done) == 3 and len(skipped) == 4, "3 converted, 4 skipped (got %d, %d)" % (len(done), len(skipped)))
+dupes = [os.path.join(audio, "inbox", "other", "Dupe.wav"), os.path.join(audio, "inbox", "suno", "dupe.mp3")]
+check(all(os.path.exists(d) for d in dupes) and not os.path.exists(os.path.join(audio, "dupe.ogg")),
+      "two uploads with one sound name: neither is converted")
+# A later run (the next upload) must not change anything: same skips, nothing swapped in, click still ElevenLabs.
+done2, skipped2 = ai.intake(root, today="2026-01-03")
+rows2 = ai.read_rows(os.path.join(root, ai.SOURCES))
+check(done2 == [] and len(skipped2) == 4, "a second run converts nothing and skips the same 4 (got %d, %d)" % (len(done2), len(skipped2)))
+check(all(os.path.exists(d) for d in dupes) and not os.path.exists(os.path.join(audio, "dupe.ogg")) and rows2 == rows,
+      "duplicates are still untouched on the next run and SOURCES.md is unchanged")
 click = os.path.join(audio, "click.ogg")
 check(os.path.exists(click), "click.ogg written")
 check(not os.path.exists(os.path.join(audio, "click.wav")) and not os.path.exists(os.path.join(audio, "click.wav.import")),

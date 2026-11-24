@@ -20,8 +20,9 @@ time, with no code change: `Audio` plays `<name>.ogg` before the placeholder `<n
 - Music (`music_*`): stereo, about -16 LUFS, never trimmed, loops by itself.
 - Deletes the placeholder of the same name and the upload, writes the row in `SOURCES.md`
   (source, licence note, date), then starts `build.yml`.
-- Skips and leaves in the inbox: silent files, files over 25 MB, anything that isn't sound, a second
-  file for the same sound name. The run's summary on GitHub (Actions -> audio-intake) lists what
+- Skips and leaves in the inbox: silent files, files over 25 MB, anything that isn't sound, and
+  every file when two share a sound name (delete all but one). A file put straight in `inbox/`
+  (no folder) is logged as source "unknown". The run's summary on GitHub (Actions -> audio-intake) lists what
   was added and what was skipped. Delete a skipped file from the inbox, or it's flagged every run.
 - `SOURCES.md` is rewritten each time: fix a licence inside its row; notes outside the table are lost.
 

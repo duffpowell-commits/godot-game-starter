@@ -86,6 +86,8 @@ def convert(src, dst, music):
     pre = [] if music else ["-af", "%s,areverse,%s,areverse" % (trim, trim)]
     p = run(["ffmpeg", "-loglevel", "error", "-y", "-i", src, "-vn"] + pre + [tmp])
     if p.returncode != 0 or not os.path.exists(tmp):
+        if os.path.exists(tmp):
+            os.remove(tmp)
         return "ffmpeg could not read it"
     m = measure(tmp)
     if m is None:
@@ -117,7 +119,14 @@ def intake(root=".", today=None):
     today = today or datetime.date.today().isoformat()
     audio, inbox, sources = (os.path.join(root, p) for p in (AUDIO, INBOX, SOURCES))
     rows = read_rows(sources)
-    done, skipped, seen = [], [], {}
+    done, skipped = [], []
+    # Two uploads for one sound name: convert neither, every run, until Duff deletes one. Picking one
+    # would let the other replace it on the next run.
+    names = {}
+    for folder, _, files in os.walk(inbox):
+        for fn in files:
+            if fn.lower().endswith(TYPES) and sound_name(fn):
+                names.setdefault(sound_name(fn), []).append(os.path.relpath(os.path.join(folder, fn), inbox))
     for folder, _, files in sorted(os.walk(inbox)):
         for fn in sorted(files):
             src = os.path.join(folder, fn)
@@ -130,8 +139,9 @@ def intake(root=".", today=None):
             if not name:
                 skipped.append("%s: the file name has no letters or numbers" % rel)
                 continue
-            if name in seen:                 # two uploads for one sound: keep the first, lose nothing
-                skipped.append("%s: same sound name as %s, which was used" % (rel, seen[name]))
+            if len(names[name]) > 1:
+                skipped.append("%s: %d uploads are named \"%s\" (%s); delete all but one" % (
+                    rel, len(names[name]), name, ", ".join(sorted(names[name]))))
                 continue
             if os.path.getsize(src) > MAX_BYTES:
                 skipped.append("%s: over 25 MB" % rel)
@@ -150,7 +160,6 @@ def intake(root=".", today=None):
                         os.remove(old)
             os.replace(dst + ".new.ogg", dst)
             os.remove(src)
-            seen[name] = rel
             where = os.path.relpath(folder, inbox).split(os.sep)[0].lower()
             where = "unknown" if where == "." else where
             rows[name] = [name, name + ".ogg", "%s (uploaded as %s)" % (where, fn.replace("|", "_")),

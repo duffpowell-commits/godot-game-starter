@@ -70,7 +70,8 @@ Before any merge: a fresh-eyes review (docs/FRESH_EYES.md); CI keeps the PR pend
   Updater, DebugMenu, Autoplay. Helpers: `ui.gd`, `config.gd`, `bug_report.gd`, `settings_sheet.gd`,
   `tune_panel.gd`, `camera_rig.gd`, `coach.gd`, `character3d.gd` (+ foot_ik, aim_twist, ragdoll).
 - `tests/run_tests.gd` rule tests. `tools/` check_scripts.gd, test.sh, autoplay.sh, gen_audio.py,
-  audio_intake.py (+ test_audio_intake.py -> `AUDIO INTAKE PASS`), test_push_guard.sh.
+  audio_intake.py (+ test_audio_intake.py -> `AUDIO INTAKE PASS`; needs ffmpeg, so CI runs it, not
+  `tools/test.sh`: run it by hand after touching the intake), test_push_guard.sh.
 - `assets/audio/` (one SOURCES.md row per clip; real sound comes in through `assets/audio/inbox/`,
   docs/AUDIO.md, never by hand), `assets/art/`, `assets/models/`. `grok_art/` never ships.
 - `signing/` keystone (encrypted) + `unlock.sh`. `docs/renders/` autoplay screenshots.

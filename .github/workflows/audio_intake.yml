@@ -62,7 +62,7 @@ jobs:
           git commit -q -m "Audio intake: $(git diff --cached --name-only --diff-filter=AM | grep -c '\.ogg$' || true) clip(s) converted"
           for i in 1 2 3; do
             if git pull -q --rebase origin main && git push -q origin HEAD:main; then
-              gh workflow run build.yml --ref main
+              gh workflow run build.yml --ref main || echo "::error::audio is on main but the build did not start: run the build workflow by hand (Actions -> build -> Run workflow)"
               exit 0
             fi
             git rebase --abort 2>/dev/null || true
