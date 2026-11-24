@@ -7,7 +7,7 @@ Use with [docs/MARKETING.md](../docs/MARKETING.md). This is a **manual approval-
 2. Add one row per channel-specific post to `calendar.csv`; status starts `draft`.
 3. Confirm footage, audio, caption, safe areas, accessibility, permissions and working CTA.
 4. Request owner approval for the exact asset, caption, channel and proposed date. Set `approved` only after approval.
-5. Schedule through an authorized platform integration or native scheduler; set `scheduled` only after saving the platform confirmation ID and exact local time.
+5. Schedule through an authorized platform integration or native scheduler (Buffer: drafts only; Duff taps post). Set `scheduled` only after saving the platform confirmation ID and exact local time.
 6. Verify public post URL after release, then mark `published`.
 7. Review at 24 hours and seven days; record metrics privately if sensitive.
 
