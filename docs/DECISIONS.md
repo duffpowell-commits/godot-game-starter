@@ -70,3 +70,7 @@ clips to 0 dB; the intake test caught it, so they are two steps.
 the robot's push + build start can't be proven from a session). Copy this into the game repos
 after it works once. The robot does not commit Godot `.import` files for new clips; the build
 makes them, and the next session commits them.
+
+## 2026-11-24: Godot 4.7.2 for every game
+
+- Duff: "Lets go 4.7 for all of our games." 4.7.2 is the latest stable; 4.7 adds a stable Godot Android Build Environment (GABE) for exporting from the phone, HDR output and AreaLight3D. CI `GODOT_VERSION`, `config/features` and the engine lines in AGENTS.md / standards moved from 4.6.3 to 4.7.2. Older entries below keep their original version numbers as history.
