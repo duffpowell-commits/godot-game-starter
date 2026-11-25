@@ -26,8 +26,9 @@ by its text or node name (retries 3 s; add `"optional":true` to skip if it never
 `{"key":"Escape"}`; `{"action":"ui_accept"}`; `{"wait":800}` (ms); `{"shot":"name"}` saves
 `docs/renders/eyes/name.png` (git-ignored; copy the ones Duff should see into `docs/renders/`);
 `{"gd":"return scene_tree.current_scene.name"}` runs GDScript against the live tree.
-Ends with `EYES PASS`, or `EYES FAIL <reason>` and exit 1. Errors the game prints fail the run
-(sandbox audio and vsync noise filtered out); add `{"allowErrors":true}` anywhere in
+Ends with `EYES PASS`, or `EYES FAIL <reason>` and exit 1. Errors the game prints fail the run,
+including bare stderr lines (`printerr`, crash text) and the game exiting on its own; warnings are
+listed but don't (sandbox audio and vsync noise filtered out); add `{"allowErrors":true}` anywhere in
 the list (as its own step or on any other step, which still runs) to only list them; it covers the whole run.
 
 Each run starts a fresh game process but keeps `user://` saves between runs, so a second run may

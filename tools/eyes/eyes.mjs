@@ -94,10 +94,44 @@ try {
     }
     else throw new Error(`unknown step ${JSON.stringify(s)}`);
   }
+  // Settle 500 ms through the bridge first: a crash or quit just after the last step closes the
+  // bridge (simulate_input throws) or shows up as running:false in the output read below.
+  await call('simulate_input', { actions: [{ type: 'wait', ms: 500 }] });
   const out = parse(await call('get_debug_output', { limit: 200 }));
+  // Godot prints each problem as a head line (SCRIPT ERROR / ERROR / WARNING / FATAL ...) followed
+  // by more message lines, then detail lines ("at:", "GDScript backtrace", "[0] ..."). Message lines
+  // attach only until the problem's "at:" line; after that only detail lines attach. Any other bare
+  // stderr line (printerr, crash text) is its own error.
+  // Errors fail the run, warnings are listed. Noise is judged on a problem's head + "at:" line only,
+  // so noise words deep in a real error's backtrace can't hide it.
   // Sandbox noise (no sound card, no vsync under xvfb) is not a game bug.
-  const noise = /ObjectDB|resources still in use|ALSA|V-Sync|set_use_vsync|All audio drivers failed|Condition "status < 0"|^\s*at: /;
-  const errs = (out.errors || []).filter((e) => !noise.test(e));
+  const noise = /ObjectDB|resources still in use|ALSA lib|V-Sync|set_use_vsync|All audio drivers failed|Condition "status < 0"/;
+  const head = /^\s*(SCRIPT ERROR|USER SCRIPT ERROR|ERROR|USER ERROR|FATAL|WARNING|USER WARNING)\b/;
+  const detail = /^\s*(at: |GDScript backtrace|\[\d+\] )/;
+  const problems = [];
+  for (const line of out.errors || []) {
+    const last = problems[problems.length - 1];
+    // A labelled message can run over several lines before its "at:" line; keep those with it.
+    const msgCont = last && last.labelled && !last.at && !head.test(line) && !detail.test(line);
+    // "[n] ..." frames belong to a problem only after its "GDScript backtrace" line, numbered
+    // 0, 1, 2... in order; a stray "[0] ..." printerr after a finished backtrace is its own error.
+    const fm = line.match(/^\s*\[(\d+)\] /);
+    const frameOk = !fm || (last && last.nextFrame !== undefined && Number(fm[1]) === last.nextFrame);
+    if (((detail.test(line) && frameOk) || msgCont) && last) {
+      last.text += ' | ' + line.trim();
+      if (!last.at && /^\s*at: /.test(line)) last.at = line.trim();
+      if (/GDScript backtrace/.test(line)) last.nextFrame = 0;
+      else if (fm) last.nextFrame += 1;
+      continue;
+    }
+    const m = line.match(head);
+    problems.push({ kind: m && /WARNING/.test(m[1]) ? 'warn' : 'error', labelled: !!m, head: line.trim(), text: line.trim(), at: '' });
+  }
+  const real = problems.filter((p) => !noise.test(`${p.head} ${p.at}`));
+  const errs = real.filter((p) => p.kind === 'error').map((p) => p.text);
+  const warns = real.filter((p) => p.kind === 'warn').map((p) => p.text);
+  if (out.running === false) errs.push(`game exited on its own (code ${out.exitCode ?? '?'})`);
+  if (warns.length) console.log(`game warnings (${warns.length}): ` + warns.slice(0, 3).join(' || ').slice(0, 500));
   // Game errors fail the run unless a step list opts out with {"allowErrors": true}.
   if (errs.length) {
     const msg = `game errors (${errs.length}): ` + errs.slice(0, 5).join(' || ').slice(0, 600);
