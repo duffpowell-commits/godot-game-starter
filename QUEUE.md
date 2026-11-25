@@ -11,6 +11,7 @@ Work only on NOW. New asks go under IDEAS with a date until Duff swaps them into
 - In a new game: Milestone 1 = the core loop from docs/PITCH.md, replacing the PLAY section of scripts/game.gd.
 
 ## DONE
+- Eyes (Nov 24, 2026): Claude drives the running game, docs/EYES.md. Copy into game repos next.
 - Milestone 0: foundation, items 1-14 (Nov 19, 2026). See CLAUDE.md.
 
 ## IDEAS

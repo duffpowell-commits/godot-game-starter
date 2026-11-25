@@ -1,0 +1,10 @@
+[
+  {"click": "SKIP", "optional": true},
+  {"click": "SKIP", "optional": true},
+  {"shot": "title"},
+  {"click": "NEW GAME"},
+  {"wait": 2000},
+  {"ui": true},
+  {"shot": "game"},
+  {"gd": "return scene_tree.current_scene.name"}
+]

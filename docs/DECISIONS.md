@@ -1,5 +1,24 @@
 # Decisions log (catch-up file for Claude, Grok and any agent)
 
+## 2026-11-24 — Eyes: Claude drives the running game (tools/eyes)
+Approved by Duff on Nov 24 ("Yes" to adding the Godot agent loop to the starter and proving it on Rush).
+
+**What changed**
+- `tools/eyes/eyes.mjs` runs the game through godot-mcp-runtime 4.0.1 (MIT, pinned) under xvfb and
+  takes JSON steps: list UI, click by text, keys, waits, screenshots, live GDScript. `EYES PASS/FAIL`.
+- `tools/test_eyes.sh` self-test: smoke passes, a missing button and broken GDScript fail.
+- `.mcp.json` registers the same server for sessions that load project MCP servers.
+
+**Why / where from**: Nov 24 web research on streamlining game dev. Autoplay replays a script; this
+lets a session explore and judge screens itself.
+
+**Review**: first pick, godot-agent-loop, failed vetting (pulled from npm, repo gone). godot-mcp-runtime
+passed: one dependency, localhost-only, no telemetry, no committed addon. First Rush run found the
+template intro text left in and no hint after FIRE.
+
+**Open**: copy into the game repos; whether project `.mcp.json` loads in cloud sessions is untested
+(the script works either way).
+
 ## 2026-11-23 — Studio publisher
 
 Startup shows the approved weathered 3 Eyed Fox Studios logo from the studio Drive folder
