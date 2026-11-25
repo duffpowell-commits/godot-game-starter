@@ -1,5 +1,15 @@
 # Decisions log (catch-up file for Claude, Grok and any agent)
 
+## 2026-11-25 — Godot 4.7.x only, enforced in CI
+Duff, Nov 25: "Lets only build on 4.7." Audit the same day: every game repo (starter, Hunter, DuffQuest,
+Lethemoor, Rush, Chaos, Pocket Fight) is already on 4.7.2 in CI and `config/features`.
+
+**What changed**
+- `build.yml` Install Godot steps fail if `godot --version` isn't 4.7.x or `project.godot`'s
+  `config/features` isn't "4.7", so a new game can't drift off it. Downloads use
+  `curl -fsSL --retry 5 --retry-all-errors` (DuffQuest PR #192: a bad download unzipped an error page).
+- standards/00-core.md and 11-build-release.md say 4.7.x only, never downgrade.
+
 ## 2026-11-24 — Eyes: Claude drives the running game (tools/eyes)
 Approved by Duff on Nov 24 ("Yes" to adding the Godot agent loop to the starter and proving it on Rush).
 
