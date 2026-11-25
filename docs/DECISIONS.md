@@ -1,5 +1,33 @@
 # Decisions log (catch-up file for Claude, Grok and any agent)
 
+## 2026-11-24 — Eyes: Claude drives the running game (tools/eyes)
+Approved by Duff on Nov 24 ("Yes" to adding the Godot agent loop to the starter and proving it on Rush).
+
+**What changed**
+- `tools/eyes/eyes.mjs` runs the game through godot-mcp-runtime 4.0.1 (MIT, pinned) under xvfb and
+  takes JSON steps: list UI, click by text, keys, waits, screenshots, live GDScript. `EYES PASS/FAIL`.
+- `tools/test_eyes.sh` self-test: smoke passes, a missing button and broken GDScript fail.
+- `.mcp.json` registers the same server for sessions that load project MCP servers.
+
+**Why / where from**: Nov 24 web research on streamlining game dev. Autoplay replays a script; this
+lets a session explore and judge screens itself.
+
+**Review**: first pick, godot-agent-loop, failed vetting (pulled from npm, repo gone). godot-mcp-runtime
+passed: one dependency, localhost-only, no telemetry, no committed addon. First Rush run found the
+template intro text left in and no hint after FIRE.
+
+**Follow-up (PR after #22)**: eyes.mjs waits for Godot to exit so xvfb-run no longer leaves a stray
+Xvfb after runs with game errors (was 1 in 3, now 0 in 6); allowErrors scope documented.
+Review caught that a step carrying allowErrors was silently skipped (false PASS); fixed, with a
+test_eyes.sh case shown red first. The exit wait matches only `<godot> --path <project>`.
+
+**Follow-up (Nov 24, Lethemoor)**: warnings no longer fail a run, only errors do (Lethemoor prints
+a harmless HUD anchor warning on every launch). Problems are grouped by their head line; bare stderr (printerr, crash text) is an error, a crash or
+quit right after the last step fails, and two-line warnings stay warnings.
+
+**Open**: copy into the game repos; whether project `.mcp.json` loads in cloud sessions is untested
+(the script works either way).
+
 ## 2026-11-24: Rule lock (duff-ok label)
 
 What: `.github/workflows/rule_lock.yml` + `tools/rule_lock.py` set a `rule-lock` status on every PR:

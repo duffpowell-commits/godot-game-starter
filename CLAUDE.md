@@ -22,6 +22,9 @@ Catch-up log: docs/DECISIONS.md.
 - Nov 24: audio intake. Real sound goes in from Duff's phone through `assets/audio/inbox/`
   (docs/AUDIO.md); CI converts, levels, logs it and rebuilds. `Audio` plays .ogg/.mp3 before the
   placeholder .wav. Not yet proven on a real upload from his phone (first one is the test).
+- Nov 24: Eyes (docs/EYES.md). A cloud session can run the game, tap buttons, read the screen,
+  screenshot and query the live scene tree (godot-mcp-runtime 4.0.1, pinned). Proven on Rush.
+  Not yet copied into the game repos.
 - Next: start a game from this template (docs/NEW_GAME.md); Milestone 1 = the game's core loop.
 
 ## Claude-only notes
