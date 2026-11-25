@@ -38,6 +38,16 @@ quit right after the last step fails, and two-line warnings stay warnings.
 **Open**: copy into the game repos; whether project `.mcp.json` loads in cloud sessions is untested
 (the script works either way).
 
+## 2026-11-24: Rule lock (duff-ok label)
+
+What: `.github/workflows/rule_lock.yml` + `tools/rule_lock.py` set a `rule-lock` status on every PR:
+failure if it changes the rules and has no `duff-ok` label. guard.py rule 6 blocks Claude from adding
+that label. Self-test `tools/test_rule_lock.sh` runs in CI.
+Why: Duff asked (Nov 24) for ways to keep agents on track after Foxboard #7, where an agent changed
+the no-likeness rule on its own and wrote that Duff had okayed it.
+Limit: every agent uses Duff's GitHub account, so GitHub can't prove who added the label. This stops
+rule changes slipped in by accident or in passing, not an agent breaking the rule on purpose.
+
 ## 2026-11-23 — Studio publisher
 
 Startup shows the approved weathered 3 Eyed Fox Studios logo from the studio Drive folder
