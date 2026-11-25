@@ -75,6 +75,54 @@ jobs:
           gh release view dev >/dev/null 2>&1 || gh release create dev --prerelease --title "Latest dev build" --notes "Rebuilt on every push to main."
           gh release upload dev "${GITHUB_REPOSITORY#*/}_gameplay.mp4" --clobber
 
+  web:
+    # Browser build for itch.io (jams like Slapjam need a game that plays in a phone browser).
+    # Single-threaded export, so itch needs no SharedArrayBuffer setting. On main the zip goes
+    # to the "dev" release as <repo>_web.zip: upload it to itch as "HTML" and tick "played in the browser".
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot + export templates
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors -o godot.zip https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip
+          unzip -q godot.zip && sudo mv Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
+          godot --version | grep -q "^4\.7\." || { echo "Godot must be 4.7.x, got $(godot --version)"; exit 1; }
+          curl -fsSL --retry 5 --retry-all-errors -o tpl.tpz https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates
+          unzip -q tpl.tpz -d /tmp/tpl
+          mv /tmp/tpl/templates ~/.local/share/godot/export_templates/${GODOT_VERSION/-/.}
+      - name: Stamp build number and repo
+        run: |
+          echo "${GITHUB_SHA::7} $(date -u +%Y-%m-%d) #${{ github.run_number }}" > build.txt
+          echo "${{ github.run_number }}" > build_code.txt
+          echo "$GITHUB_REPOSITORY" > repo.txt
+          echo "WEBZIP=${GITHUB_REPOSITORY#*/}_web.zip" >> $GITHUB_ENV
+      - name: Import
+        run: timeout 300 godot --headless --path . --import || true
+      - name: Export Web
+        run: |
+          mkdir -p build/web
+          godot --headless --path . --export-release "Web" build/web/index.html 2>&1 | tee export.log
+          grep -A8 "configuration errors" export.log || true
+          test -f build/web/index.html && test -f build/web/index.wasm && test -f build/web/index.pck
+          (cd build/web && zip -q -r "../../$WEBZIP" .)
+          ls -la build/web "$WEBZIP"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: ${{ env.WEBZIP }}
+      - name: Publish to the "dev" release (main only)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view dev >/dev/null 2>&1 || gh release create dev --prerelease --title "Latest dev build" --notes "Rebuilt on every push to main."
+          gh release upload dev "$WEBZIP" --clobber
+
   android:
     needs: test
     runs-on: ubuntu-latest
