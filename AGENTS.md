@@ -26,6 +26,7 @@ Why: Claude Code hooks only fire inside Claude Code, so Grok and other agents co
 - Eyes (Claude drives the running game; docs/EYES.md): `tools/eyes/setup.sh` once, then
   `xvfb-run -a -s "-screen 0 1080x1920x24" node tools/eyes/eyes.mjs tools/eyes/smoke.json` -> `EYES PASS`. Self-test: `tools/test_eyes.sh`.
 - Push guard self-test: `tools/test_push_guard.sh` -> `PUSH GUARD PASS` (local bare remote, never GitHub).
+- Rule lock self-test: `tools/test_rule_lock.sh` -> `RULE LOCK PASS`.
 - CI: `gh api repos/<owner>/<repo>/actions/runs?per_page=3` (gh GraphQL is blocked in sessions).
 
 Before every push: `tools/test.sh` prints `TESTS PASS`, then `tools/autoplay.sh` prints `AUTOPLAY PASS`.
@@ -64,6 +65,12 @@ Before any merge: a fresh-eyes review (docs/FRESH_EYES.md); CI keeps the PR pend
   `FRESH-EYES REVIEW: PASS` on the head commit (docs/FRESH_EYES.md). Pending is not green: sessions
   check the combined status and don't merge (GitHub itself doesn't block it).
 - Signing: one keystone for every game except Lethemoor (docs/SIGNING.md). Never make another key.
+- Rule lock (Nov 24, 2026): a PR that changes the rules (AGENTS.md, GROK_STANDARDS.md, `standards/`,
+  `.claude/`, `.githooks/`, `fresh_eyes.yml`, `rule_lock.yml`, the lock's own tools, or CLAUDE.md's top
+  (@imports) or a rules/guards/signing section; list in `tools/rule_lock.py`) gets a failing `rule-lock` status until Duff adds the `duff-ok` label.
+  **Agents never add, ask a tool to add, or work around that label**; guard.py blocks Claude from it.
+  Put rule changes in their own PR, say in the body what changes and why, and tell Duff it needs his tap.
+  Why: on Nov 21 an agent rewrote a rule inside an art PR and wrote "Duff okayed it" itself.
 
 ## Layout
 - `scenes/` boot, intro, title, game (Control + script; UI built in code). `game.gd` = placeholder
