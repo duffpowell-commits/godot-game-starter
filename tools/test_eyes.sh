@@ -27,10 +27,19 @@ out=$(run '[{"gd": "push_warning(\"eyes test warning\")\nreturn 7"}, {"wait": 30
 echo "$out" | grep -q "^EYES PASS" || fail "a game warning failed the run (only errors should)"
 echo "$out" | grep -q "^game warnings" || fail "a game warning was not listed"
 
+out=$(run '[{"gd": "push_warning(\"line one\\nline two of the same warning\")\nreturn 1"}, {"wait": 300}]'); echo "$out" | tail -1
+echo "$out" | grep -q "^EYES PASS" || fail "the second line of a two-line warning was counted as an error"
+
 out=$(run '[{"gd": "printerr(\"plain stderr error\")\nreturn 1"}, {"wait": 300}]'); echo "$out" | tail -1
 echo "$out" | grep -q "^EYES FAIL game errors" || fail "a bare printerr was not caught"
 
 out=$(run '[{"gd": "push_warning(\"w1\")\nprinterr(\"error after a warning\")\nreturn 1"}, {"wait": 300}]'); echo "$out" | tail -1
 echo "$out" | grep -q "^EYES FAIL game errors" || fail "a printerr after a warning was hidden as a warning"
+
+out=$(run '[{"gd": "scene_tree.create_timer(0.05).timeout.connect(func(): OS.crash(\"eyes crash test\"))\nreturn 1"}]'); echo "$out" | tail -1
+echo "$out" | grep -q "^EYES FAIL" || fail "a crash right after the last step passed"
+
+out=$(run '[{"gd": "push_warning(\"w\")\nprinterr(\"[0] looks like a backtrace line\")\nreturn 1"}, {"wait": 300}]'); echo "$out" | tail -1
+echo "$out" | grep -q "^EYES FAIL game errors" || fail "a fake [n] stderr line hid under a warning"
 
 echo "EYES TEST PASS"

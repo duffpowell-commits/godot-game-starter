@@ -22,7 +22,8 @@ Review caught that a step carrying allowErrors was silently skipped (false PASS)
 test_eyes.sh case shown red first. The exit wait matches only `<godot> --path <project>`.
 
 **Follow-up (Nov 24, Lethemoor)**: warnings no longer fail a run, only errors do (Lethemoor prints
-a harmless HUD anchor warning on every launch). Problems are grouped by their head line.
+a harmless HUD anchor warning on every launch). Problems are grouped by their head line; bare stderr (printerr, crash text) is an error, a crash or
+quit right after the last step fails, and two-line warnings stay warnings.
 
 **Open**: copy into the game repos; whether project `.mcp.json` loads in cloud sessions is untested
 (the script works either way).
