@@ -106,5 +106,12 @@ try {
 } catch (e) { failed = e.message; }
 try { await call('stop_project', {}); } catch {}
 await client.close();
+// Wait (up to 8 s) for this project's Godot to really exit, so xvfb-run can tear down its display
+// cleanly instead of leaving an orphaned Xvfb behind (seen after runs that end in game errors).
+const { execFileSync } = await import('node:child_process');
+const godotAlive = () => {
+  try { return execFileSync('pgrep', ['-f', `godot.*${project}`]).toString().trim() !== ''; } catch { return false; }
+};
+for (let i = 0; i < 40 && godotAlive(); i++) await new Promise((res) => setTimeout(res, 200));
 if (failed) { console.log(`EYES FAIL ${failed.replace(/\s+/g, ' ').slice(0, 500)}`); process.exit(1); }
 console.log('EYES PASS');
