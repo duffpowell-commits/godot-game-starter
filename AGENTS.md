@@ -23,6 +23,8 @@ Why: Claude Code hooks only fire inside Claude Code, so Grok and other agents co
   check `tools/check_scripts.gd` + rule tests `tests/run_tests.gd` -> `ALL PASS`; records the
   passing tree for the push guard).
 - Flow + screenshots: `tools/autoplay.sh` -> last line `AUTOPLAY PASS` (also writes `docs/renders/gameplay.mp4`).
+- Eyes (Claude drives the running game; docs/EYES.md): `tools/eyes/setup.sh` once, then
+  `xvfb-run -a node tools/eyes/eyes.mjs tools/eyes/smoke.json` -> `EYES PASS`. Self-test: `tools/test_eyes.sh`.
 - Push guard self-test: `tools/test_push_guard.sh` -> `PUSH GUARD PASS` (local bare remote, never GitHub).
 - CI: `gh api repos/<owner>/<repo>/actions/runs?per_page=3` (gh GraphQL is blocked in sessions).
 
@@ -70,7 +72,7 @@ Before any merge: a fresh-eyes review (docs/FRESH_EYES.md); CI keeps the PR pend
   Updater, DebugMenu, Autoplay. Helpers: `ui.gd`, `config.gd`, `bug_report.gd`, `settings_sheet.gd`,
   `tune_panel.gd`, `camera_rig.gd`, `coach.gd`, `character3d.gd` (+ foot_ik, aim_twist, ragdoll).
 - `tests/run_tests.gd` rule tests. `tools/` check_scripts.gd, test.sh, autoplay.sh, gen_audio.py,
-  audio_intake.py (+ test_audio_intake.py -> `AUDIO INTAKE PASS`; needs ffmpeg, so CI runs it, not
+  eyes/ + test_eyes.sh (docs/EYES.md), audio_intake.py (+ test_audio_intake.py -> `AUDIO INTAKE PASS`; needs ffmpeg, so CI runs it, not
   `tools/test.sh`: run it by hand after touching the intake), test_push_guard.sh.
 - `assets/audio/` (one SOURCES.md row per clip; real sound comes in through `assets/audio/inbox/`,
   docs/AUDIO.md, never by hand), `assets/art/`, `assets/models/`. `grok_art/` never ships.
