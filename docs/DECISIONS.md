@@ -18,6 +18,8 @@ template intro text left in and no hint after FIRE.
 
 **Follow-up (PR after #22)**: eyes.mjs waits for Godot to exit so xvfb-run no longer leaves a stray
 Xvfb after runs with game errors (was 1 in 3, now 0 in 6); allowErrors scope documented.
+Review caught that a step carrying allowErrors was silently skipped (false PASS); fixed, with a
+test_eyes.sh case shown red first. The exit wait matches only `<godot> --path <project>`.
 
 **Open**: copy into the game repos; whether project `.mcp.json` loads in cloud sessions is untested
 (the script works either way).

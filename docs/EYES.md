@@ -28,7 +28,7 @@ by its text or node name (retries 3 s; add `"optional":true` to skip if it never
 `{"gd":"return scene_tree.current_scene.name"}` runs GDScript against the live tree.
 Ends with `EYES PASS`, or `EYES FAIL <reason>` and exit 1. Errors the game prints fail the run
 (sandbox audio and vsync noise filtered out); add `{"allowErrors":true}` anywhere in
-the list (as its own step or inside another) to only list them; it covers the whole run.
+the list (as its own step or on any other step, which still runs) to only list them; it covers the whole run.
 
 Each run starts a fresh game process but keeps `user://` saves between runs, so a second run may
 show CONTINUE on the title screen.

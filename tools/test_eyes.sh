@@ -20,4 +20,7 @@ echo "$out" | grep -qE "^EYES FAIL run_script" || fail "broken GDScript was not 
 out=$(run '[{"gd": "var n = null\nscene_tree.root.add_child(Node.new())\nscene_tree.create_timer(0.1).timeout.connect(func(): n.foo())\nreturn 1"}, {"wait": 800}]'); echo "$out" | tail -1
 echo "$out" | grep -q "^EYES FAIL game errors" || fail "a game runtime error was not caught"
 
+out=$(run '[{"gd": "return 42", "allowErrors": true}]'); echo "$out" | tail -1
+echo "$out" | grep -q "^gd 42" || fail "a step carrying allowErrors was skipped"
+
 echo "EYES TEST PASS"
