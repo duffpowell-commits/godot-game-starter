@@ -27,4 +27,10 @@ out=$(run '[{"gd": "push_warning(\"eyes test warning\")\nreturn 7"}, {"wait": 30
 echo "$out" | grep -q "^EYES PASS" || fail "a game warning failed the run (only errors should)"
 echo "$out" | grep -q "^game warnings" || fail "a game warning was not listed"
 
+out=$(run '[{"gd": "printerr(\"plain stderr error\")\nreturn 1"}, {"wait": 300}]'); echo "$out" | tail -1
+echo "$out" | grep -q "^EYES FAIL game errors" || fail "a bare printerr was not caught"
+
+out=$(run '[{"gd": "push_warning(\"w1\")\nprinterr(\"error after a warning\")\nreturn 1"}, {"wait": 300}]'); echo "$out" | tail -1
+echo "$out" | grep -q "^EYES FAIL game errors" || fail "a printerr after a warning was hidden as a warning"
+
 echo "EYES TEST PASS"
