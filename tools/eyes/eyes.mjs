@@ -9,7 +9,8 @@
 //   {"action": "ui_accept"}            tap an input-map action
 //   {"wait": 800}                      wait N milliseconds
 //   {"shot": "title"}                  save a screenshot to docs/renders/eyes/<name>.png
-//   {"allowErrors": true}            don't fail the run on game errors (they still print)
+//   {"allowErrors": true}            don't fail the run on game errors (they still print); may also
+//                                     ride on any other step, and covers the whole run either way
 //   {"gd": "return scene_tree.current_scene.name"}   run GDScript (body of execute(scene_tree)), print result
 // Prints one line per step and ends with EYES PASS, or EYES FAIL <reason> (exit 1).
 import { Client } from '@modelcontextprotocol/client';
@@ -73,7 +74,7 @@ try {
       await call('simulate_input', { actions: [{ type: 'click_element', element: hit.path || hit.name }] });
       console.log(`click ${s.click} -> ${hit.path || hit.name}`);
     }
-    else if ('allowErrors' in s) { /* marker only */ }
+    else if ('allowErrors' in s && Object.keys(s).length === 1) { /* marker-only step */ }
     else if (s.key) { await call('simulate_input', { actions: [{ type: 'key', key: s.key }] }); console.log(`key ${s.key}`); }
     else if (s.action) { await call('simulate_input', { actions: [{ type: 'action', action: s.action }] }); console.log(`action ${s.action}`); }
     else if (s.shot) {
@@ -106,5 +107,17 @@ try {
 } catch (e) { failed = e.message; }
 try { await call('stop_project', {}); } catch {}
 await client.close();
+// Wait (up to 8 s) for this project's Godot to really exit, so xvfb-run can tear down its display
+// cleanly instead of leaving an orphaned Xvfb behind (seen after runs that end in game errors).
+const { execFileSync } = await import('node:child_process');
+// Match only the Godot binary that godot-mcp-runtime spawned: `<godot> --path <project>` (exact path).
+const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const godotBin = process.env.GODOT_PATH || '/usr/local/bin/godot';
+const mine = `^${esc(godotBin)} .*--path ${esc(project)}( |$)`;
+const godotAlive = () => {
+  try { return execFileSync('pgrep', ['-f', mine]).toString().trim() !== ''; } catch { return false; }
+};
+for (let i = 0; i < 40 && godotAlive(); i++) await new Promise((res) => setTimeout(res, 200));
+if (godotAlive()) { try { execFileSync('pkill', ['-f', mine]); } catch {} }
 if (failed) { console.log(`EYES FAIL ${failed.replace(/\s+/g, ' ').slice(0, 500)}`); process.exit(1); }
 console.log('EYES PASS');
