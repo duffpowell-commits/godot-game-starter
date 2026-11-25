@@ -26,14 +26,14 @@ by its text or node name (retries 3 s; add `"optional":true` to skip if it never
 `{"key":"Escape"}`; `{"action":"ui_accept"}`; `{"wait":800}` (ms); `{"shot":"name"}` saves
 `docs/renders/eyes/name.png` (git-ignored; copy the ones Duff should see into `docs/renders/`);
 `{"gd":"return scene_tree.current_scene.name"}` runs GDScript against the live tree.
-Ends with `EYES PASS`, or `EYES FAIL <reason>` and exit 1. Game errors are listed (sandbox audio
-and vsync noise filtered out).
+Ends with `EYES PASS`, or `EYES FAIL <reason>` and exit 1. Errors the game prints fail the run
+(sandbox audio and vsync noise filtered out); add `{"allowErrors":true}` to only list them.
 
 Each run starts a fresh game process but keeps `user://` saves between runs, so a second run may
 show CONTINUE on the title screen.
 
-Self-test: `tools/test_eyes.sh` -> `EYES TEST PASS` (smoke must pass; a missing button and broken
-GDScript must fail). Run it after touching `tools/eyes/`.
+Self-test: `tools/test_eyes.sh` -> `EYES TEST PASS` (smoke must pass; a missing button, broken
+GDScript and a game runtime error must fail). Run it after touching `tools/eyes/`.
 
 ## In a game repo
 Write a `tools/eyes/smoke.json` that reaches your core screen. After a gameplay change, play a few

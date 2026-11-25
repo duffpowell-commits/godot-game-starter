@@ -9,6 +9,7 @@
 //   {"action": "ui_accept"}            tap an input-map action
 //   {"wait": 800}                      wait N milliseconds
 //   {"shot": "title"}                  save a screenshot to docs/renders/eyes/<name>.png
+//   {"allowErrors": true}            don't fail the run on game errors (they still print)
 //   {"gd": "return scene_tree.current_scene.name"}   run GDScript (body of execute(scene_tree)), print result
 // Prints one line per step and ends with EYES PASS, or EYES FAIL <reason> (exit 1).
 import { Client } from '@modelcontextprotocol/client';
@@ -18,19 +19,23 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const project = process.cwd();
+const project = path.resolve(here, '../..');  // repo root, wherever it's run from
 const arg = process.argv[2];
 if (!arg) { console.log('EYES FAIL no steps given'); process.exit(1); }
-const steps = JSON.parse(fs.existsSync(arg) ? fs.readFileSync(arg, 'utf8') : arg);
+let steps;
+try { steps = JSON.parse(fs.existsSync(arg) ? fs.readFileSync(arg, 'utf8') : arg); }
+catch (e) { console.log(`EYES FAIL bad steps JSON: ${e.message}`); process.exit(1); }
 const outDir = path.join(project, 'docs/renders/eyes');
 fs.mkdirSync(outDir, { recursive: true });
 
 const server = path.join(here, 'node_modules/godot-mcp-runtime/dist/index.js');
 const client = new Client({ name: 'eyes', version: '1.0.0' });
+try {
 await client.connect(new StdioClientTransport({
   command: 'node', args: [server], stderr: 'ignore',
   env: { ...process.env, GODOT_PATH: process.env.GODOT_PATH || '/usr/local/bin/godot', GODOT_MCP_DISABLE_ELICITATION: 'true' },
 }));
+} catch (e) { console.log(`EYES FAIL server did not start (run tools/eyes/setup.sh): ${e.message}`); process.exit(1); }
 
 const text = (r) => (r.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
 async function call(name, args) {
@@ -45,8 +50,8 @@ try {
   await call('run_project', { projectPath: project });
   await new Promise((res) => setTimeout(res, 2500));
   for (const s of steps) {
-    if (s.wait) { await call('simulate_input', { actions: [{ type: 'wait', ms: s.wait }] }); console.log(`wait ${s.wait}`); }
-    else if (s.ui) {
+    if ('wait' in s) { await call('simulate_input', { actions: [{ type: 'wait', ms: s.wait }] }); console.log(`wait ${s.wait}`); }
+    else if ('ui' in s) {
       const ui = parse(await call('get_ui_elements', { visibleOnly: true }));
       const els = (ui.elements || ui || []).filter?.((e) => e.text) ?? [];
       console.log(`ui ${els.length} with text: ` + els.map((e) => `[${e.type || e.class}] ${String(e.text).replace(/\s+/g, ' ').slice(0, 30)}`).join(' | '));
@@ -68,6 +73,7 @@ try {
       await call('simulate_input', { actions: [{ type: 'click_element', element: hit.path || hit.name }] });
       console.log(`click ${s.click} -> ${hit.path || hit.name}`);
     }
+    else if ('allowErrors' in s) { /* marker only */ }
     else if (s.key) { await call('simulate_input', { actions: [{ type: 'key', key: s.key }] }); console.log(`key ${s.key}`); }
     else if (s.action) { await call('simulate_input', { actions: [{ type: 'action', action: s.action }] }); console.log(`action ${s.action}`); }
     else if (s.shot) {
@@ -91,7 +97,12 @@ try {
   // Sandbox noise (no sound card, no vsync under xvfb) is not a game bug.
   const noise = /ObjectDB|resources still in use|ALSA|V-Sync|set_use_vsync|All audio drivers failed|Condition "status < 0"|^\s*at: /;
   const errs = (out.errors || []).filter((e) => !noise.test(e));
-  if (errs.length) console.log(`game errors (${errs.length}): ` + errs.slice(0, 5).join(' || ').slice(0, 600));
+  // Game errors fail the run unless a step list opts out with {"allowErrors": true}.
+  if (errs.length) {
+    const msg = `game errors (${errs.length}): ` + errs.slice(0, 5).join(' || ').slice(0, 600);
+    if (steps.some((s) => s.allowErrors)) console.log(`${msg} (allowed)`);
+    else failed = msg;
+  }
 } catch (e) { failed = e.message; }
 try { await call('stop_project', {}); } catch {}
 await client.close();

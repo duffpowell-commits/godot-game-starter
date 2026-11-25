@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 run() { timeout 280 xvfb-run -a -s "-screen 0 1080x1920x24" node tools/eyes/eyes.mjs "$1" 2>&1; }
 fail() { echo "EYES TEST FAIL: $1"; exit 1; }
 
+rm -f docs/renders/eyes/game.png
 out=$(run tools/eyes/smoke.json); echo "$out" | tail -3
 echo "$out" | grep -q "^EYES PASS" || fail "smoke run did not pass"
 [ -s docs/renders/eyes/game.png ] || fail "smoke run wrote no game.png"
@@ -15,5 +16,8 @@ echo "$out" | grep -q "^EYES FAIL no visible button" || fail "missing button was
 
 out=$(run '[{"gd": "return scene_tree.no_such_property.name"}]'); echo "$out" | tail -1
 echo "$out" | grep -qE "^EYES FAIL run_script" || fail "broken GDScript was not caught"
+
+out=$(run '[{"gd": "var n = null\nscene_tree.root.add_child(Node.new())\nscene_tree.create_timer(0.1).timeout.connect(func(): n.foo())\nreturn 1"}, {"wait": 800}]'); echo "$out" | tail -1
+echo "$out" | grep -q "^EYES FAIL game errors" || fail "a game runtime error was not caught"
 
 echo "EYES TEST PASS"
