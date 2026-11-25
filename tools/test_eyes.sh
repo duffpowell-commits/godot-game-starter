@@ -23,4 +23,8 @@ echo "$out" | grep -q "^EYES FAIL game errors" || fail "a game runtime error was
 out=$(run '[{"gd": "return 42", "allowErrors": true}]'); echo "$out" | tail -1
 echo "$out" | grep -q "^gd 42" || fail "a step carrying allowErrors was skipped"
 
+out=$(run '[{"gd": "push_warning(\"eyes test warning\")\nreturn 7"}, {"wait": 300}]'); echo "$out" | tail -2
+echo "$out" | grep -q "^EYES PASS" || fail "a game warning failed the run (only errors should)"
+echo "$out" | grep -q "^game warnings" || fail "a game warning was not listed"
+
 echo "EYES TEST PASS"

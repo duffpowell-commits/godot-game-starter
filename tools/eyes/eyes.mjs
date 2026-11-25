@@ -95,9 +95,21 @@ try {
     else throw new Error(`unknown step ${JSON.stringify(s)}`);
   }
   const out = parse(await call('get_debug_output', { limit: 200 }));
+  // Godot prints each problem as a head line (SCRIPT ERROR / ERROR / WARNING ...) followed by
+  // detail lines (backtrace, "at:"). Group them, then: errors fail the run, warnings are listed.
   // Sandbox noise (no sound card, no vsync under xvfb) is not a game bug.
-  const noise = /ObjectDB|resources still in use|ALSA|V-Sync|set_use_vsync|All audio drivers failed|Condition "status < 0"|^\s*at: /;
-  const errs = (out.errors || []).filter((e) => !noise.test(e));
+  const noise = /ObjectDB|resources still in use|ALSA|V-Sync|set_use_vsync|All audio drivers failed|Condition "status < 0"/;
+  const head = /^\s*(SCRIPT ERROR|USER SCRIPT ERROR|ERROR|USER ERROR|WARNING|USER WARNING)\b/;
+  const problems = [];
+  for (const line of out.errors || []) {
+    if (head.test(line)) problems.push({ kind: /WARNING/.test(line.match(head)[1]) ? 'warn' : 'error', text: line.trim() });
+    else if (problems.length) problems[problems.length - 1].text += ' | ' + line.trim();
+    else problems.push({ kind: 'error', text: line.trim() });  // unlabeled stderr: treat as error
+  }
+  const real = problems.filter((p) => !noise.test(p.text));
+  const errs = real.filter((p) => p.kind === 'error').map((p) => p.text);
+  const warns = real.filter((p) => p.kind === 'warn').map((p) => p.text);
+  if (warns.length) console.log(`game warnings (${warns.length}): ` + warns.slice(0, 3).join(' || ').slice(0, 500));
   // Game errors fail the run unless a step list opts out with {"allowErrors": true}.
   if (errs.length) {
     const msg = `game errors (${errs.length}): ` + errs.slice(0, 5).join(' || ').slice(0, 600);
