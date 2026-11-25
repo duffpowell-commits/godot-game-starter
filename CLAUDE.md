@@ -25,6 +25,7 @@ Catch-up log: docs/DECISIONS.md.
 - Nov 24: Eyes (docs/EYES.md). A cloud session can run the game, tap buttons, read the screen,
   screenshot and query the live scene tree (godot-mcp-runtime 4.0.1, pinned). Proven on Rush.
   Not yet copied into the game repos.
+- Nov 25: Godot 4.7.x only (Duff). CI fails if the engine or `config/features` drifts off 4.7.
 - Next: start a game from this template (docs/NEW_GAME.md); Milestone 1 = the game's core loop.
 
 ## Claude-only notes
