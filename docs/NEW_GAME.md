@@ -11,8 +11,8 @@
    offers itself in-game (UPDATE NOW).
 
 ## Studio mascot (Duff, Nov 26)
-- **the three-eyed fox is in every game as a rare cameo, not a pal**: a small event
-  that matters but never ruins a run. Duff OKs the fox art on a card before it's built. Rule + this game's idea: `docs/MASCOT.md`.
+- **The three-eyed fox is in every game as a rare cameo, not a pal**: a small event
+  that matters but never ruins a run. Duff OKs the fox art on a card before it's built. Rule + how each game plans its cameo: `docs/MASCOT.md`.
 
 ## Marketing setup (required for every new game)
 
