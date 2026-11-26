@@ -35,7 +35,7 @@ and a newest-first log.
 ## Next steps, in order
 1. Start a game from the template: docs/NEW_GAME.md. Milestone 1 = its core loop.
 2. Copy Eyes (tools/eyes, docs/EYES.md) and the web export job into the game repos that lack them
-   (Lethemoor already has Eyes).
+   (Lethemoor and Rush already have Eyes).
 3. Ideas waiting in QUEUE.md (Nov 22): installed-APK smoke test, bug-report replay, save migration test.
 
 ## Build and test (cloud sandbox)
