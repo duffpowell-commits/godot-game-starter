@@ -6,7 +6,7 @@
 2. In the new repo add the `KEYSTONE_PASS` secret, same passphrase as every game (docs/SIGNING.md).
 3. Tell your coding AI (Claude or Grok): "read AGENTS.md and set up <game>". It renames `config/name` in
    project.godot, fills docs/PITCH.md (game-greenlight), rewrites CLAUDE.md's top, and starts
-   Milestone 1 from QUEUE.md.
+   Milestone 1 from QUEUE.md. It also copies docs/HANDOFF.md and keeps it current in every PR.
 4. First push to main builds the APK: Releases -> dev -> tap the APK to install. Every later build
    offers itself in-game (UPDATE NOW).
 
