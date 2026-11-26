@@ -9,6 +9,8 @@ Why the import (Nov 21): Claude Code skips AGENTS.md when CLAUDE.md exists unles
 Catch-up log: docs/DECISIONS.md.
 
 ## Where things stand
+- **Studio mascot (Duff, Nov 26): the three-eyed fox is in every game as a rare cameo, not a pal**: a small event
+  that matters but never ruins a run. Duff OKs the fox art on a card before it's built. Rule + this game's idea: `docs/MASCOT.md`.
 - Rulebook for every game and every coding AI: **AGENTS.md** (commands + standing rules) ->
   **GROK_STANDARDS.md** -> `standards/*.md` (one topic each, <= 60 lines). Change rules here, then
   copy them into the game repos (list at the bottom of AGENTS.md).
